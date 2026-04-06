@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Security Control Gap Analysis — Policy-Grounded Assessment</title>
+    <meta
+      name="description"
+      content="Assess your organisation's security posture across 7 control areas — Authorization, Authentication, Logging, Compliance, Patching, Hardening, and Session Management — grounded in your security policy."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <!-- Loading overlay -->
+    <div
+      id="loadingOverlay"
+      class="loading-overlay loading-overlay--hidden"
+      aria-hidden="true"
+      aria-busy="false"
+    >
+      <div class="loading-panel">
+        <div class="spinner" aria-hidden="true"></div>
+        <p class="loading-progress" id="loadingProgress">Analyzing controls…</p>
+        <p class="loading-quote" id="loadingQuote"></p>
+      </div>
+    </div>
+
+    <div class="page">
+      <!-- Header -->
+      <header class="header">
+        <div>
+          <h1>Security Control Gap Analysis</h1>
+          <p class="sub">
+            Describe your current implementation for each control area. The
+            assessment is grounded in your security policy.
+          </p>
+        </div>
+        <div class="header-actions">
+          <span class="badge">Single-page</span>
+          <span class="badge">Policy-grounded</span>
+          <span class="badge">Guardrailed</span>
+        </div>
+      </header>
+
+      <!-- Input grid -->
+      <main class="grid">
+        <section class="card">
+          <h2>1) Authorization</h2>
+          <p class="hint">
+            Describe how your application controls who can access what. Include
+            how roles are assigned, how access is reviewed, and how privileged
+            accounts are managed.
+          </p>
+          <textarea
+            id="Authorization"
+            rows="6"
+            maxlength="3000"
+            placeholder="Write a short paragraph..."
+          ></textarea>
+          <span class="char-count" data-for="Authorization"></span>
+        </section>
+
+        <section class="card">
+          <h2>2) Authentication</h2>
+          <p class="hint">
+            Describe how users and service accounts authenticate. Include
+            details on MFA, password requirements, SSO, and how default
+            credentials are handled.
+          </p>
+          <textarea
+            id="Authentication"
+            rows="6"
+            maxlength="3000"
+            placeholder="Write a short paragraph..."
+          ></textarea>
+          <span class="char-count" data-for="Authentication"></span>
+        </section>
+
+        <section class="card">
+          <h2>3) Logging &amp; Monitoring</h2>
+          <p class="hint">
+            Describe what your application logs, where logs are stored, how long
+            they are kept, and how they are reviewed.
+          </p>
+          <textarea
+            id="Logging &amp; Monitoring"
+            rows="6"
+            maxlength="3000"
+            placeholder="Write a short paragraph..."
+          ></textarea>
+          <span class="char-count" data-for="Logging & Monitoring"></span>
+        </section>
+
+        <section class="card">
+          <h2>4) Certification &amp; Compliance</h2>
+          <p class="hint">
+            Describe what security standards or certifications your application
+            or organisation complies with, and how compliance is audited and
+            maintained.
+          </p>
+          <textarea
+            id="Certification &amp; Compliance"
+            rows="6"
+            maxlength="3000"
+            placeholder="Write a short paragraph..."
+          ></textarea>
+          <span class="char-count" data-for="Certification & Compliance"></span>
+        </section>
+
+        <section class="card">
+          <h2>5) Application Patching</h2>
+          <p class="hint">
+            Describe your patch management process, including how quickly
+            different severity patches are applied and how legacy systems are
+            handled.
+          </p>
+          <textarea
+            id="Application Patching"
+            rows="6"
+            maxlength="3000"
+            placeholder="Write a short paragraph..."
+          ></textarea>
+          <span class="char-count" data-for="Application Patching"></span>
+        </section>
+
+        <section class="card">
+          <h2>6) System Hardening</h2>
+          <p class="hint">
+            Describe how your systems are hardened. Include configuration
+            baselines used, how unused services are managed, encryption in
+            transit, and admin interface controls.
+          </p>
+          <textarea
+            id="System Hardening"
+            rows="6"
+            maxlength="3000"
+            placeholder="Write a short paragraph..."
+          ></textarea>
+          <span class="char-count" data-for="System Hardening"></span>
+        </section>
+
+        <section class="card">
+          <h2>7) Session Management</h2>
+          <p class="hint">
+            Describe how user sessions are managed. Include session timeout
+            rules, how tokens are protected, and what happens when a user logs
+            out.
+          </p>
+          <textarea
+            id="Session Management"
+            rows="6"
+            maxlength="3000"
+            placeholder="Write a short paragraph..."
+          ></textarea>
+          <span class="char-count" data-for="Session Management"></span>
+        </section>
+      </main>
+
+      <!-- Actions -->
+      <section class="actions">
+        <button id="submitBtn" class="btn-primary">Run assessment</button>
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+      </section>
+
+      <!-- Compliance summary (hidden until results) -->
+      <section id="summarySection" class="summary-section summary-section--hidden">
+        <div class="summary-card">
+          <div class="score-ring-wrap">
+            <svg class="score-ring" viewBox="0 0 120 120">
+              <circle class="score-ring__bg" cx="60" cy="60" r="52" />
+              <circle
+                class="score-ring__fg"
+                id="scoreArc"
+                cx="60"
+                cy="60"
+                r="52"
+                stroke-dasharray="326.73"
+                stroke-dashoffset="326.73"
+              />
+            </svg>
+            <div class="score-ring__label">
+              <span class="score-ring__value" id="scoreValue">0</span>
+              <span class="score-ring__unit">%</span>
+            </div>
+          </div>
+          <div class="summary-breakdown">
+            <h3>Compliance Summary</h3>
+            <div class="summary-row">
+              <span class="summary-dot summary-dot--ok"></span>
+              <span>Compliant</span>
+              <strong id="countCompliant">0</strong>
+            </div>
+            <div class="summary-row">
+              <span class="summary-dot summary-dot--warn"></span>
+              <span>Partially Implemented</span>
+              <strong id="countPartial">0</strong>
+            </div>
+            <div class="summary-row">
+              <span class="summary-dot summary-dot--bad"></span>
+              <span>Gap Identified</span>
+              <strong id="countGap">0</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section id="resultsSection" class="results results--hidden">
+        <div class="results-header">
+          <h2>Results</h2>
+          <button id="exportBtn" class="btn-export" title="Export results as JSON">
+            ⬇ Export JSON
+          </button>
+        </div>
+        <div id="resultsGrid" class="results-grid"></div>
+      </section>
+
+      <footer class="footer">
+        <p>
+          Note: Blank fields or "not applicable" will be treated as a gap.
+          Maximum 3 000 characters per field.
+        </p>
+      </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
