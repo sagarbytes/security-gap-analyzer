@@ -1,0 +1,30 @@
+[
+  {
+    "id": "chunk_0",
+    "text": "[4.1 Authorization Policy] 4.1 Authorization Policy \u2022 Access must follow the Principle of Least Privilege (PoLP). \u2022 Authorization must use Role-Based Access Control (RBAC). \u2022 Critical system access must require manager approval. \u2022 Access review must occur at least quarterly. \u2022 Privileged accounts must be monitored and reviewed monthly."
+  },
+  {
+    "id": "chunk_1",
+    "text": "[4.2 Authentication Policy] 4.2 Authentication Policy \u2022 MFA is mandatory for all users accessing corporate systems. \u2022 Passwords must follow strong password requirements (length \u2265 12, complexity enforced). \u2022 Service accounts must use key-based or certificate-based authentication where possible. \u2022 Default credentials must be removed or changed before deployment. \u2022 SSO must be used where supported."
+  },
+  {
+    "id": "chunk_2",
+    "text": "[4.3 Logging & Monitoring Policy] 4.3 Logging & Monitoring Policy \u2022 All critical systems must log: o authentication attempts o access control changes o configuration or system changes o security events & anomalies \u2022 Logs must be: o sent to a central SIEM o retained for a minimum of 1 year o reviewed weekly by the security operations team \u2022 Time synchronization (NTP) must be enforced across all systems."
+  },
+  {
+    "id": "chunk_3",
+    "text": "[4.4 Certification & Compliance Policy] 4.4 Certification & Compliance Policy \u2022 Relevant systems must comply with applicable industry standards (ISO, SOC, etc.). \u2022 Annual internal audits must evaluate implementation of controls. \u2022 Corrective actions must be documented and resolved within 90 days. \u2022 Third-party services must undergo compliance verification (SOC 2, ISO 27001, etc.)."
+  },
+  {
+    "id": "chunk_4",
+    "text": "[4.5 Application Patching Policy] 4.5 Application Patching Policy \u2022 All systems must follow a formal patch management lifecycle. \u2022 Patch timelines: o Critical patches: within 48 hours o High patches: within 7 days o Medium patches: within 30 days o Low patches: within 90 days \u2022 Unsupported or legacy systems must have compensating controls documented."
+  },
+  {
+    "id": "chunk_5",
+    "text": "[4.6 System Hardening Policy] 4.6 System Hardening Policy \u2022 Systems must follow secure configuration baselines (CIS, benchmarks, vendor hardening guides). \u2022 Unnecessary services, ports, and applications must be disabled or removed. \u2022 Encryption (TLS 1.2+) must be enforced for data in transit. \u2022 Administrative interfaces must be segregated and restricted. \u2022 Hardening guidelines must be reviewed annually."
+  },
+  {
+    "id": "chunk_6",
+    "text": "[4.7 Session Management Policy] 4.7 Session Management Policy \u2022 Sessions must timeout after: o 15 minutes of inactivity for users o 5 minutes for privileged users \u2022 Session tokens must be: o encrypted o protected against reuse o invalidated immediately on logout or account lock \u2022 Applications must prevent: o simultaneous logins (where possible) o predictable session IDs"
+  }
+]

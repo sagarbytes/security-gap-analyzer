@@ -1,0 +1,14 @@
+[
+  {
+    "id": "chunk_0",
+    "text": "[4.1 Authorization Policy] 4.1 Authorization Policy: All authorization must employ strictly Attribute-Based Access Control (ABAC). Using Roles (RBAC) alone is rigidly out of compliance and forbidden."
+  },
+  {
+    "id": "chunk_1",
+    "text": "[4.2 Authentication Policy] 4.2 Authentication Policy: All users must use biometric auth. Passwords are forbidden and non-compliant."
+  },
+  {
+    "id": "chunk_2",
+    "text": "[4.3 Logging & Monitoring Policy] 4.3 Application Patching: Critical patches MUST be deployed within 8 hours. No exceptions."
+  }
+]

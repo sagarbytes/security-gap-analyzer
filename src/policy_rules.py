@@ -20,6 +20,34 @@ def _lower(s: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  GENERAL BLOCKERS (Gibberish & meaningless input catch-all)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _blockers_general(desc: str) -> list[tuple[str, Severity]]:
+    t = desc.strip()
+    out: list[tuple[str, Severity]] = []
+    
+    if not t:
+        return out
+        
+    # Check 1: Absolute length threshold
+    if len(t) < 15:
+        out.append(("Input lacks sufficient detail to verify compliance.", "severe"))
+        return out
+        
+    # Check 2: Word count and dictionary sanity
+    words = [w for w in re.split(r'\s+', t) if w]
+    if len(words) < 3:
+        out.append(("Input too brief or lacks meaningful context.", "severe"))
+        
+    # Check 3: Repetition (e.g. "jjjjj", "dddd,ddd")
+    if re.search(r"([a-zA-Z])\1{5,}", t):
+        out.append(("Input contains repetitive gibberish.", "severe"))
+        
+    return out
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  BLOCKER RULES  (detect policy violations → may downgrade status)
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -28,32 +56,13 @@ def _blockers_authentication(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # MFA missing entirely
+    # MFA missing entirely (Generalized)
     if re.search(
-        r"\bno\s+mfa\b|\bmfa\s+not\b|without\s+mfa|password\s+only|single[- ]factor",
+        r"\bno\s+mfa\b|password\s+only|single[- ]factor|never\s+change\s+password",
         t,
     ):
         out.append((
-            "Policy requires MFA for all users; description indicates MFA is not in place.",
-            "severe",
-        ))
-    # MFA not universal
-    elif re.search(
-        r"mfa.*\b(optional|opt-in|only\s+for\s+admins?|admins?\s+only|not\s+for\s+all|not\s+mandatory)\b",
-        t,
-    ) or re.search(r"\b(optional|admins?\s+only).{0,80}\bmfa\b", t):
-        out.append((
-            "Policy requires MFA mandatory for all users; description suggests MFA is not universal.",
-            "severe",
-        ))
-
-    # Weak password length
-    if re.search(r"\b(8|9|10)\s*(char|charact|digit)", t) and not re.search(
-        r"1[2-9]\s*(char|charact)|at\s+least\s+1[2-9]|≥\s*12|greater\s+than\s+1[1-9]",
-        t,
-    ):
-        out.append((
-            "Policy requires password length ≥ 12 with complexity; description suggests weaker rules.",
+            "Input explicitly denies modern authentication standards or enforces password-only login.",
             "severe",
         ))
 
@@ -62,15 +71,8 @@ def _blockers_authentication(desc: str) -> list[tuple[str, Severity]]:
         r"default\s+(password|cred|login)|leave\s+default|vendor\s+default", t
     ):
         out.append((
-            "Policy requires default credentials removed/changed before deployment.",
-            "moderate",
-        ))
-
-    # SSO not mentioned at all (moderate — not severe since SSO is "where supported")
-    if "sso" not in t and "single sign" not in t:
-        out.append((
-            "Policy requires SSO where supported; not mentioned in description.",
-            "moderate",
+            "Input explicitly describes utilizing or leaving vendor default credentials unchanged.",
+            "severe",
         ))
 
     return out
@@ -80,30 +82,20 @@ def _blockers_logging(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # Retention too short
-    if re.search(r"\b(30|60|90)\s*days?\b|\b6\s*months?\b", t) and not re.search(
-        r"1\s*year|365\s*days?|at\s+least\s+a\s+year|minimum\s+one\s+year|≥\s*1\s*year",
-        t,
-    ):
+    # Complete lack of logging
+    if re.search(r"no\s+logging|we\s+do\s+not\s+log|logs\s+disabled|never\s+review", t):
         out.append((
-            "Policy requires log retention ≥ 1 year; description suggests shorter retention.",
+            "Input explicitly states no telemetry, logging, or review pipeline is established.",
             "severe",
         ))
 
-    # No SIEM
+    # Only local troubleshooting logs
     if re.search(
-        r"only\s+when\s+troubleshoot|no\s+siem|not\s+.*\bsiem\b|local\s+files?\s+only",
+        r"only\s+when\s+troubleshoot|local\s+files?\s+only|no\s+central\s+logging",
         t,
     ):
         out.append((
-            "Policy requires logs sent to central SIEM and weekly review.",
-            "moderate",
-        ))
-
-    # NTP / time sync not mentioned
-    if "ntp" not in t and "time sync" not in t and "time synchroniz" not in t:
-        out.append((
-            "Policy requires NTP / time synchronization across all systems; not mentioned.",
+            "Input implies logs are strictly local and inherently lack centralized security visibility.",
             "moderate",
         ))
 
@@ -114,37 +106,25 @@ def _blockers_session(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # Timeout too long
-    if re.search(r"\b(30|45|60|90|120)\s*(min|minutes?|mins?)\b", t) and not re.search(
-        r"\b15\s*(min|minutes?)\b.*\b(privileged|admin)|privileged.{0,40}5\s*(min|minutes?)",
-        t,
-    ):
-        if "15" not in t and "5" not in t:
-            out.append((
-                "Policy requires 15 min (users) / 5 min (privileged) inactivity timeouts.",
-                "severe",
-            ))
-
-    # Insecure token storage
-    if "localstorage" in t or "local storage" in t:
+    # Sessions never timeout
+    if re.search(r"no\s+timeout|never\s+expire|permanent\s+session|sessions?\s+do\s+not\s+timeout", t):
         out.append((
-            "Policy requires session tokens encrypted and invalidated on logout; "
-            "browser localStorage is high risk.",
-            "moderate",
-        ))
-
-    # Predictable session IDs (but not "non-predictable" or "unpredictable")
-    if re.search(r"(?<!non[- ])(?<!un)predictable\s+session|sequential\s+(session|id|token)", t):
-        out.append((
-            "Policy requires non-predictable session IDs.",
+            "Input declares explicit absence of inactivity timeouts.",
             "severe",
         ))
 
-    # Simultaneous logins allowed with no restriction
-    if re.search(r"allow.{0,30}simultaneous|no.{0,20}concurrent.{0,20}limit", t):
+    # Insecure token storage / logic
+    if "localstorage" in t or "local storage" in t or "unencrypted" in t:
         out.append((
-            "Policy requires prevention of simultaneous logins where possible.",
+            "Input indicates high-risk token storage capabilities or plaintext transport.",
             "moderate",
+        ))
+
+    # Predictable session IDs
+    if re.search(r"(?<!non[- ])(?<!un)predictable\s+session|sequential\s+(session|id|token)", t):
+        out.append((
+            "Input explicitly defines session identifiers as vulnerable or predictable.",
+            "severe",
         ))
 
     return out
@@ -154,28 +134,19 @@ def _blockers_patching(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # Critical patches too slow
-    if re.search(
-        r"critical.{0,100}(week|month|two\s*weeks?|14\s*days?|21\s*days?)", t
-    ):
+    # Adhoc or no patching
+    if re.search(r"never\s+patch|no\s+formal|ad\s*hoc\s+patch|manual.{0,30}patch\s+only", t):
         out.append((
-            "Policy requires critical patches within 48 hours; description suggests slower handling.",
+            "Input explicitly denies possessing an active or automated patching structure.",
             "severe",
         ))
 
-    # Legacy/unsupported without compensating controls
+    # Legacy systems without controls
     if re.search(r"legacy|unsupported|end of life|eol", t) and not re.search(
-        r"compensat|documented|risk\s+accept", t
+        r"compensat|documented|risk\s+accept|isolated", t
     ):
         out.append((
-            "Policy requires compensating controls documented for legacy/unsupported systems.",
-            "moderate",
-        ))
-
-    # No formal patch lifecycle mentioned
-    if re.search(r"no\s+formal|ad\s*hoc\s+patch|manual.{0,30}patch", t):
-        out.append((
-            "Policy requires a formal patch management lifecycle.",
+            "Input relies on EOL legacy systems without mentioning isolation or compensating controls.",
             "moderate",
         ))
 
@@ -186,30 +157,11 @@ def _blockers_authorization(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # Access review cadence too weak
-    if re.search(
-        r"(annual|yearly|two\s*years?|never|ad\s*hoc).{0,40}(review|access\s*review)",
-        t,
-    ) or re.search(r"access\s*review.{0,40}(annual|two\s*years?|never)", t):
+    # Completely unverified access
+    if re.search(r"never\s+review|everyone\s+has\s+access|no\s+restrictions", t):
         out.append((
-            "Policy requires access review at least quarterly; description suggests weaker cadence.",
-            "moderate",
-        ))
-
-    # Privileged accounts not reviewed
-    if re.search(
-        r"privileged.{0,80}(not\s+review|no\s+schedule|only\s+incident)", t
-    ):
-        out.append((
-            "Policy requires privileged accounts monitored/reviewed monthly.",
-            "moderate",
-        ))
-
-    # No RBAC or PoLP mentioned
-    if "rbac" not in t and "role" not in t and "least privilege" not in t:
-        out.append((
-            "Policy requires RBAC and Principle of Least Privilege; not clearly mentioned.",
-            "moderate",
+            "Input fundamentally admits to providing completely unrestricted or unreviewed access.",
+            "severe",
         ))
 
     return out
@@ -241,25 +193,10 @@ def _blockers_hardening(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # Weak transport encryption
-    if re.search(r"plain\s*http|no\s*tls|tls\s*1\.[01]\b", t):
+    if re.search(r"plain\s*text|no\s*(encryption|tls)|public\s+db", t):
         out.append((
-            "Policy requires TLS 1.2+ for data in transit; description suggests weaker transport.",
+            "Input describes extremely insecure basic architecture flaws (plaintext transport or public databases).",
             "severe",
-        ))
-
-    # No CIS / baseline
-    if re.search(r"vendor\s+default|no\s+cis|not\s+cis", t):
-        out.append((
-            "Policy references secure configuration baselines (CIS); not demonstrated.",
-            "moderate",
-        ))
-
-    # Admin interfaces not segregated
-    if re.search(r"admin.{0,40}(public|open|internet|unsegregated|not\s+restrict)", t):
-        out.append((
-            "Policy requires administrative interfaces segregated and restricted.",
-            "moderate",
         ))
 
     return out
@@ -357,7 +294,7 @@ def apply_rule_downgrade(control_area: str, description: str, current_status: st
 
     Returns (new_status, notes_list).
     """
-    blockers = get_rule_blockers(control_area, description)
+    blockers = _blockers_general(description) + get_rule_blockers(control_area, description)
     positive_count = _count_positive_matches(control_area, description)
 
     if not blockers:
@@ -366,6 +303,10 @@ def apply_rule_downgrade(control_area: str, description: str, current_status: st
     severe_count = sum(1 for _, s in blockers if s == "severe")
     moderate_count = sum(1 for _, s in blockers if s == "moderate")
     notes = [b[0] for b in blockers]
+
+    # ── Gibberish / Meaningless Text → Gap Identified ──
+    if any("Input lacks sufficient detail" in b[0] or "Input too brief" in b[0] or "repetitive gibberish" in b[0] for b in blockers):
+        return "Gap Identified", notes
 
     # ── Strong positive signal can compensate moderate-only blockers ──
     if severe_count == 0 and positive_count >= 3 and moderate_count <= 2:

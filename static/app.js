@@ -144,23 +144,45 @@ function renderSummary(summary) {
   const score = summary.compliance_score;
   document.getElementById("scoreValue").textContent = score;
 
-  // Animate the arc
-  const arc = document.getElementById("scoreArc");
-  const circumference = 2 * Math.PI * 52; // r=52
-  const offset = circumference - (circumference * score) / 100;
-  arc.style.transition = "stroke-dashoffset 1.2s ease";
+  // Animate the three arcs
+  const circumference = 2 * Math.PI * 52; // r=52 (~326.73)
+  const total = 7;
+  
+  const arcCompliant = document.getElementById("arcCompliant");
+  const arcPartial = document.getElementById("arcPartial");
+  const arcGap = document.getElementById("arcGap");
+  
+  // Ratios
+  const rCompliant = summary.compliant / total;
+  const rPartial = summary.partially_implemented / total;
+  const rGap = summary.gap_identified / total;
+  
+  // Set stroke-dashoffset (circumference minus the segment length)
+  const offCompliant = circumference - (circumference * rCompliant);
+  const offPartial = circumference - (circumference * rPartial);
+  const offGap = circumference - (circumference * rGap);
+  
+  // Set starting rotation for each segment
+  // The first segment starts at 0 rotation 
+  // partial starts where compliant ends
+  const rotPartial = rCompliant * 360; 
+  // gap starts where partial ends
+  const rotGap = rotPartial + (rPartial * 360);
+  
+  // Apply rotation using transform origin center
+  arcCompliant.style.transformOrigin = "50% 50%";
+  arcPartial.style.transformOrigin = "50% 50%";
+  arcGap.style.transformOrigin = "50% 50%";
+  
+  arcCompliant.style.transform = `rotate(0deg)`;
+  arcPartial.style.transform = `rotate(${rotPartial}deg)`;
+  arcGap.style.transform = `rotate(${rotGap}deg)`;
+  
   requestAnimationFrame(() => {
-    arc.style.strokeDashoffset = offset;
+    arcCompliant.style.strokeDashoffset = offCompliant;
+    arcPartial.style.strokeDashoffset = offPartial;
+    arcGap.style.strokeDashoffset = offGap;
   });
-
-  // Color the arc based on score
-  if (score >= 80) {
-    arc.style.stroke = "var(--ok)";
-  } else if (score >= 50) {
-    arc.style.stroke = "var(--warn)";
-  } else {
-    arc.style.stroke = "var(--bad)";
-  }
 }
 
 /* ── Results rendering ── */
@@ -243,7 +265,7 @@ function renderResults(results) {
 
 /* ── Export ── */
 
-function exportResults() {
+function exportJson() {
   if (!_lastResults) return;
   const blob = new Blob([JSON.stringify(_lastResults, null, 2)], {
     type: "application/json",
@@ -256,6 +278,37 @@ function exportResults() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function exportPdf() {
+  if (!_lastResults) return;
+  const resultsGrid = document.getElementById("resultsGrid");
+  const summarySection = document.getElementById("summarySection");
+  
+  // Clone element to prevent UI disruption during print rendering
+  const printWrapper = document.createElement("div");
+  printWrapper.style.padding = "20px";
+  printWrapper.style.color = "black";
+  printWrapper.style.background = "#fff";
+  
+  const header = document.createElement("h1");
+  header.textContent = `Security Gap Analysis Report - ${new Date().toISOString().slice(0, 10)}`;
+  header.style.marginBottom = "20px";
+  printWrapper.appendChild(header);
+
+  printWrapper.appendChild(summarySection.cloneNode(true));
+  printWrapper.appendChild(resultsGrid.cloneNode(true));
+  
+  const opt = {
+    margin:       10,
+    filename:     `Security_Compliance_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true },
+    jsPDF:        { unit: 'mm', format: 'letter', orientation: 'portrait' }
+  };
+  
+  // Need to force light mode for PDF usually depending on CSS, but html2pdf handles mostly inline.
+  html2pdf().set(opt).from(printWrapper).save();
 }
 
 /* ── Main assessment flow ── */
@@ -285,10 +338,17 @@ async function runAssessment() {
     showLoading();
     timers = startLoadingContent(loadingQuote, loadingProgress);
 
+    const formData = new FormData();
+    formData.append("descriptions", JSON.stringify(descriptions));
+    
+    const fileInput = document.getElementById("policyFile");
+    if (fileInput && fileInput.files.length > 0) {
+      formData.append("policy_file", fileInput.files[0]);
+    }
+
     const res = await fetch("/assess", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ descriptions }),
+      body: formData,
     });
     const raw = await res.text();
     const ct = (res.headers.get("content-type") || "").toLowerCase();
@@ -344,5 +404,33 @@ async function runAssessment() {
 document.addEventListener("DOMContentLoaded", () => {
   initCharCounters();
   document.getElementById("submitBtn").addEventListener("click", runAssessment);
-  document.getElementById("exportBtn").addEventListener("click", exportResults);
+  
+  const btnJson = document.getElementById("exportBtnJson");
+  const btnPdf = document.getElementById("exportBtnPdf");
+  if(btnJson) btnJson.addEventListener("click", exportJson);
+  if(btnPdf) btnPdf.addEventListener("click", exportPdf);
+  
+  const fileInput = document.getElementById("policyFile");
+  if (fileInput) {
+    fileInput.addEventListener("change", (e) => {
+      const nameSpan = document.getElementById("policyFileName");
+      if (e.target.files.length > 0) {
+        nameSpan.textContent = e.target.files[0].name;
+        nameSpan.classList.add("active-file");
+      } else {
+        nameSpan.textContent = "No file chosen";
+        nameSpan.classList.remove("active-file");
+      }
+    });
+
+    const nameSpan = document.getElementById("policyFileName");
+    nameSpan.addEventListener("click", (e) => {
+      if (fileInput.files.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        const objUrl = URL.createObjectURL(fileInput.files[0]);
+        window.open(objUrl, "_blank");
+      }
+    });
+  }
 });

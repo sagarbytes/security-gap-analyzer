@@ -15,6 +15,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   </head>
   <body>
     <!-- Loading overlay -->
@@ -47,6 +48,16 @@
           <span class="badge">Guardrailed</span>
         </div>
       </header>
+
+      <!-- Advanced Settings -->
+      <section class="settings-card">
+        <label for="policyFile" class="settings-label">Custom Security Policy (Optional)</label>
+        <p class="settings-hint">Upload a PDF to assess your controls against a custom policy. If left blank, the default built-in policy is used.</p>
+        <div class="file-upload-wrapper">
+          <input type="file" id="policyFile" accept="application/pdf" class="file-input" />
+          <span id="policyFileName" class="file-name">No file chosen</span>
+        </div>
+      </section>
 
       <!-- Input grid -->
       <main class="grid">
@@ -174,15 +185,12 @@
           <div class="score-ring-wrap">
             <svg class="score-ring" viewBox="0 0 120 120">
               <circle class="score-ring__bg" cx="60" cy="60" r="52" />
-              <circle
-                class="score-ring__fg"
-                id="scoreArc"
-                cx="60"
-                cy="60"
-                r="52"
-                stroke-dasharray="326.73"
-                stroke-dashoffset="326.73"
-              />
+              <!-- Red segment (bg) -->
+              <circle class="score-ring__fg ring-gap" id="arcGap" cx="60" cy="60" r="52" stroke-dasharray="326.73" stroke-dashoffset="326.73" />
+              <!-- Yellow segment (mid) -->
+              <circle class="score-ring__fg ring-partial" id="arcPartial" cx="60" cy="60" r="52" stroke-dasharray="326.73" stroke-dashoffset="326.73" />
+              <!-- Green segment (top) -->
+              <circle class="score-ring__fg ring-compliant" id="arcCompliant" cx="60" cy="60" r="52" stroke-dasharray="326.73" stroke-dashoffset="326.73" />
             </svg>
             <div class="score-ring__label">
               <span class="score-ring__value" id="scoreValue">0</span>
@@ -214,9 +222,13 @@
       <section id="resultsSection" class="results results--hidden">
         <div class="results-header">
           <h2>Results</h2>
-          <button id="exportBtn" class="btn-export" title="Export results as JSON">
-            ⬇ Export JSON
-          </button>
+          <div class="export-dropdown">
+            <button class="btn-export">⬇ Export Options</button>
+            <div class="export-dropdown-content">
+              <button id="exportBtnPdf" title="Export as PDF Document">Export PDF Report</button>
+              <button id="exportBtnJson" title="Export raw data as JSON">Export JSON Data</button>
+            </div>
+          </div>
         </div>
         <div id="resultsGrid" class="results-grid"></div>
       </section>
