@@ -56,22 +56,19 @@ def _blockers_authentication(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # MFA missing entirely (Generalized)
-    if re.search(
-        r"\bno\s+mfa\b|password\s+only|single[- ]factor|never\s+change\s+password",
-        t,
-    ):
+    # MFA missing or partial (Admins only is a Gap)
+    if re.search(r"mfa\s+(only|just)\s+for\s+admin|no\s+mfa\b|password\s+only|single[- ]factor", t):
         out.append((
-            "Input explicitly denies modern authentication standards or enforces password-only login.",
+            "Input describes missing or insufficient MFA coverage (e.g. Admins only). Policy requires universal MFA.",
             "severe",
         ))
 
     # Default credentials not addressed
     if "default" in t and re.search(
-        r"default\s+(password|cred|login)|leave\s+default|vendor\s+default", t
+        r"default\s+(password|cred|login)|leave\s+default|vendor\s+default|not\s+(rotated|changed)\s+yet", t
     ):
         out.append((
-            "Input explicitly describes utilizing or leaving vendor default credentials unchanged.",
+            "Input explicitly describes utilizing or neglecting to rotate vendor default credentials.",
             "severe",
         ))
 
@@ -113,10 +110,31 @@ def _blockers_session(desc: str) -> list[tuple[str, Severity]]:
             "severe",
         ))
 
+    # Excessive timeouts (e.g. 60 minutes when policy likely requires 15/5)
+    if re.search(r"\b(30|60|90|120)\s*(min|minute)", t) or "1\s*hour" in t:
+        out.append((
+            "Input describes session timeouts (≥30m) that significantly exceed typical security policy thresholds (15m).",
+            "severe",
+        ))
+
+    # Missing logout invalidation
+    if re.search(r"not\s+invalidated\s+when\s+logout|not\s+invalidated\s+on\s+logout|logout\s+does\s+not\s+expire", t):
+        out.append((
+            "Input explicitly states session tokens are not invalidated upon user logout.",
+            "severe",
+        ))
+
     # Insecure token storage / logic
     if "localstorage" in t or "local storage" in t or "unencrypted" in t:
         out.append((
             "Input indicates high-risk token storage capabilities or plaintext transport.",
+            "moderate",
+        ))
+
+    # Concurrent logins allowed
+    if re.search(r"not\s+prevent\s+concurrent|concurrent\s+logins?\s+(allowed|permitted|not\s+prevented)", t):
+        out.append((
+            "Input states that concurrent logins are not prevented, contrary to security best practices.",
             "moderate",
         ))
 
@@ -138,6 +156,13 @@ def _blockers_patching(desc: str) -> list[tuple[str, Severity]]:
     if re.search(r"never\s+patch|no\s+formal|ad\s*hoc\s+patch|manual.{0,30}patch\s+only", t):
         out.append((
             "Input explicitly denies possessing an active or automated patching structure.",
+            "severe",
+        ))
+
+    # Long patch windows (2-3 weeks, 30 days)
+    if re.search(r"2-3\s+weeks?|30\s+days?|within\s+a\s+month|whenever\s+staff\s+available", t):
+        out.append((
+            "Input describes extremely slow vulnerability remediation windows (2+ weeks). Policy requires 48-72h for critical patches.",
             "severe",
         ))
 
@@ -313,14 +338,16 @@ def apply_rule_downgrade(control_area: str, description: str, current_status: st
         # User clearly describes compliance — moderate-only notes are informational
         return current_status, notes
 
-    # ── Multiple severe → Gap ──
+    # ── Multiple severe (≥2) → Gap ──
     if severe_count >= 2:
         return "Gap Identified", notes
 
-    # ── One severe → Partial ──
+    # ── One severe → Gap (if no strong positive) ──
     if severe_count == 1:
-        # But if strong positive signal, keep as partial (don't go to gap)
-        return "Partially Implemented", notes
+        # If there's 1 severe gap, we force a Gap status unless the positive signal is extremely strong (>4)
+        if positive_count >= 5:
+            return "Partially Implemented", notes
+        return "Gap Identified", notes
 
     # ── Multiple moderate (≥2) without positive credit → Partial ──
     if moderate_count >= 2:
