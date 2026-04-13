@@ -37,9 +37,9 @@ class Assessment:
     error: str | None = None
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# SYSTEM PROMPT — includes explicit policy thresholds for precision
-# ═══════════════════════════════════════════════════════════════════════════
+
+
+
 
 SYSTEM_PROMPT = """\
 You are a cybersecurity policy auditor. Your ONLY job is to compare the USER DESCRIPTION
@@ -81,9 +81,9 @@ OUTPUT FORMAT — strict JSON
 """
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# HELPERS
-# ═══════════════════════════════════════════════════════════════════════════
+
+
+
 
 def _is_blank_or_na(s: str) -> bool:
     t = (s or "").strip().lower()
@@ -116,14 +116,14 @@ def _pick_status(obj: dict[str, Any]) -> Any:
 def _coerce_assessment(area: str, obj: dict[str, Any]) -> Assessment:
     status = _normalize_llm_status(_pick_status(obj))
 
-    # Summary
+    
     summary = (
         obj.get("summary") or obj.get("Summary") or obj.get("description") or ""
     ).strip()
     if not summary:
         summary = "The system description was evaluated against policy requirements."
 
-    # Gap detail
+    
     gap_detail = (
         obj.get("gap_detail")
         or obj.get("GapDetail")
@@ -139,7 +139,7 @@ def _coerce_assessment(area: str, obj: dict[str, Any]) -> Assessment:
         else:
             gap_detail = "Some policy requirements are not fully satisfied."
 
-    # Policy references
+    
     refs = (
         obj.get("policy_reference")
         or obj.get("PolicyReference")
@@ -162,9 +162,9 @@ def _coerce_assessment(area: str, obj: dict[str, Any]) -> Assessment:
     )
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# POST-LLM FINALIZATION (rules + reference cleaning)
-# ═══════════════════════════════════════════════════════════════════════════
+
+
+
 
 def _finalize_with_rules_and_refs(
     area: str,
@@ -172,7 +172,7 @@ def _finalize_with_rules_and_refs(
     assessment: Assessment,
     policy_chunks: list[str],
 ) -> Assessment:
-    # ── Clean policy references ──
+    
     refs = ensure_policy_references_non_empty(
         assessment.policy_reference, policy_chunks
     )
@@ -183,13 +183,13 @@ def _finalize_with_rules_and_refs(
             clean_refs.append(r)
     assessment.policy_reference = clean_refs[:2]
 
-    # ── Apply rule engine ──
+    
     new_status, rule_notes = apply_rule_downgrade(
         area, description, assessment.status
     )
     assessment.status = new_status
 
-    # Add rule notes to gap_detail when status is not Compliant
+    
     if rule_notes and assessment.status != "Compliant":
         extra = "Rule-based validation: " + " | ".join(rule_notes)
         if assessment.gap_detail:
@@ -197,7 +197,7 @@ def _finalize_with_rules_and_refs(
         else:
             assessment.gap_detail = extra
 
-    # Ensure gap_detail consistency
+    
     if assessment.status == "Compliant":
         assessment.gap_detail = None
     elif not assessment.gap_detail:
@@ -206,17 +206,17 @@ def _finalize_with_rules_and_refs(
     return assessment
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# MAIN ASSESSMENT FUNCTIONS
-# ═══════════════════════════════════════════════════════════════════════════
+
+
+
 
 def assess_one(control_area: str, description: str, data_dir: Path) -> Assessment:
     """Assess a single control area against the policy."""
 
-    # ── Guardrail check ──
+    
     injection = detect_prompt_injection(description)
 
-    # ── Retrieve relevant policy chunks ──
+    
     policy_chunks = retrieve_relevant(
         policy_query=f"{control_area} {description[:500]}",
         data_dir=data_dir,
@@ -244,7 +244,7 @@ def assess_one(control_area: str, description: str, data_dir: Path) -> Assessmen
             policy_reference=refs,
         )
 
-    # ── Build LLM prompt ──
+    
     policy_text = "\n\n---\n\n".join(policy_chunks)
 
     user_prompt = f"""\
@@ -314,7 +314,7 @@ def compute_compliance_summary(
         else:
             gap += 1
 
-    # Score: Compliant=100%, Partial=50%, Gap=0%
+    
     score = round(((compliant * 100) + (partial * 50)) / total) if total else 0
 
     return {

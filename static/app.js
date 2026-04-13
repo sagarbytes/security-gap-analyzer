@@ -462,34 +462,53 @@ function exportPdf() {
   printWrapper.appendChild(footer);
 
   // 2. Render and Download
+  // html2canvas needs the element to be in the foreground to capture it.
+  // We use opacity:0.01 so it's nearly invisible but fully rendered.
   printWrapper.style.position = "fixed";
   printWrapper.style.left = "0";
   printWrapper.style.top = "0";
-  printWrapper.style.width = "800px";
-  printWrapper.style.visibility = "hidden";
-  printWrapper.style.pointerEvents = "none";
-  printWrapper.style.zIndex = "-9999";
+  printWrapper.style.width = "850px";
+  printWrapper.style.backgroundColor = "white";
+  printWrapper.style.zIndex = "99999";
+  printWrapper.style.opacity = "0.01";
+  printWrapper.style.overflow = "auto";
+  printWrapper.style.maxHeight = "100vh";
   document.body.appendChild(printWrapper);
   
   const opt = {
-    margin:       10,
+    margin:       15,
     filename:     `Security_Compliance_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
     image:        { type: 'jpeg', quality: 0.98 },
     html2canvas:  { 
       scale: 2, 
       useCORS: true, 
       logging: false,
-      scrollY: -window.scrollY // Fixes potential capture offset
+      width: 850,
+      windowWidth: 850,
+      scrollY: 0,
+      y: 0,
+      onclone: (clonedDoc) => {
+        // Ensure the cloned element is fully visible for capture
+        const el = clonedDoc.querySelector('[data-pdf-wrapper]');
+        if (el) {
+          el.style.opacity = "1";
+          el.style.position = "static";
+          el.style.maxHeight = "none";
+        }
+      }
     },
     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
   
-  // Use a slight timeout to ensure visibility:hidden doesn't interfere with first paint calculation
-  setTimeout(() => {
-    html2pdf().set(opt).from(printWrapper).save().then(() => {
-      document.body.removeChild(printWrapper);
-    });
-  }, 150);
+  // Tag the wrapper so onclone can find it
+  printWrapper.setAttribute("data-pdf-wrapper", "true");
+  
+  html2pdf().set(opt).from(printWrapper).save().then(() => {
+    document.body.removeChild(printWrapper);
+  }).catch(err => {
+    console.error("PDF Export failed:", err);
+    if (printWrapper.parentNode) document.body.removeChild(printWrapper);
+  });
 }
 
 /* ── Main assessment flow ── */

@@ -15,9 +15,9 @@ class LLMError(RuntimeError):
     pass
 
 
-# ---------------------------------------------------------------------------
+
 # Ollama backend
-# ---------------------------------------------------------------------------
+
 def _ollama_chat(messages: list[dict[str, str]]) -> str:
     base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
     model = os.getenv("OLLAMA_MODEL", "llama3:latest")
@@ -39,9 +39,9 @@ def _ollama_chat(messages: list[dict[str, str]]) -> str:
     return (data.get("message") or {}).get("content") or ""
 
 
-# ---------------------------------------------------------------------------
+
 # OpenAI backend
-# ---------------------------------------------------------------------------
+
 def _openai_chat(messages: list[dict[str, str]]) -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -71,9 +71,9 @@ def _openai_chat(messages: list[dict[str, str]]) -> str:
         raise LLMError(f"Unexpected OpenAI response shape: {e}")
 
 
-# ---------------------------------------------------------------------------
-# JSON cleaning helpers
-# ---------------------------------------------------------------------------
+
+
+
 _CODE_FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)\n?```", re.DOTALL)
 _TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")
 
@@ -81,15 +81,15 @@ _TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")
 def _clean_json_string(raw: str) -> str:
     """Strip markdown fences, BOM, trailing commas, and whitespace."""
     s = raw.strip()
-    # Remove UTF-8 BOM
+    
     s = s.lstrip("\ufeff")
 
-    # Extract from code fences if present
+    
     fence_match = _CODE_FENCE_RE.search(s)
     if fence_match:
         s = fence_match.group(1).strip()
 
-    # Remove trailing commas before } or ]
+    
     s = _TRAILING_COMMA_RE.sub(r"\1", s)
     return s
 
@@ -102,7 +102,7 @@ def _try_parse_json(raw: str) -> dict[str, Any] | None:
     except (json.JSONDecodeError, ValueError):
         pass
 
-    # Last resort: find the outermost { ... }
+    
     start = cleaned.find("{")
     end = cleaned.rfind("}")
     if start != -1 and end != -1 and end > start:
@@ -114,9 +114,9 @@ def _try_parse_json(raw: str) -> dict[str, Any] | None:
     return None
 
 
-# ---------------------------------------------------------------------------
-# Main entry point
-# ---------------------------------------------------------------------------
+
+
+
 def chat_json(messages: list[dict[str, str]], _retried: bool = False) -> dict[str, Any]:
     """Send messages to the configured LLM and return parsed JSON."""
     use_ollama = os.getenv("USE_OLLAMA", "1").lower() in {"1", "true", "yes", "y"}
@@ -126,7 +126,7 @@ def chat_json(messages: list[dict[str, str]], _retried: bool = False) -> dict[st
     if result is not None:
         return result
 
-    # Retry once with a nudge
+    
     if not _retried:
         retry_messages = messages + [
             {"role": "assistant", "content": raw},

@@ -30,7 +30,7 @@ def home():
 @app.post("/assess")
 def assess():
     try:
-        # Detect if request is JSON or multipart/form-data
+        
         if request.is_json:
             payload = request.get_json(silent=True) or {}
             descriptions = payload.get("descriptions") or {}
@@ -38,7 +38,7 @@ def assess():
             descriptions_str = request.form.get("descriptions", "{}")
             descriptions = json.loads(descriptions_str)
 
-        # Handle custom policy file if provided
+        
         policy_file = request.files.get("policy_file")
         active_pdf_path = POLICY_PDF_PATH
         active_data_dir = DATA_DIR
@@ -46,17 +46,17 @@ def assess():
         if policy_file and policy_file.filename:
             file_bytes = policy_file.read()
             if len(file_bytes) > 0:
-                # Generate unique hash for this document
+                
                 file_hash = hashlib.md5(file_bytes).hexdigest()
                 hash_dir = DATA_DIR / "custom_hashes" / file_hash
                 hash_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Save it temporarily
+                
                 active_pdf_path = hash_dir / "custom_policy.pdf"
                 if not active_pdf_path.exists():
                     active_pdf_path.write_bytes(file_bytes)
                 
-                # Use this separate directory for FAISS indexing
+                
                 active_data_dir = hash_dir
 
         # ── Input validation ──

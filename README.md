@@ -1,132 +1,110 @@
-# Security Control Gap Analysis (Policy‑Grounded)
+# Security Control Gap Analyzer
 
-This project implements the **AI Development Assessment Task**:
-a single-page web app that collects user descriptions for **seven security control areas** and returns a **gap assessment** grounded strictly in the provided security policy PDF.
+A production-ready, locally-hosted SaaS application designed to assess security implementations against formal policy documents using Retrieval-Augmented Generation (RAG).
 
-## What it does
+## Installation & Setup (From Scratch)
 
-- **Single web page** with exactly **7 required** text areas:
-  - Authorization
-  - Authentication
-  - Logging & Monitoring
-  - Certification & Compliance
-  - Application Patching
-  - System Hardening
-  - Session Management
-- **One backend POST endpoint**: `POST /assess`
-- **Vector retrieval grounding**:
-  - The policy PDF is embedded into a local FAISS vector index.
-  - **Section-aware chunking**: the policy is split by section (4.1–4.7) producing one clean chunk per control area for highly precise retrieval.
-  - For each control area, the backend retrieves the most relevant policy excerpts and provides them to the LLM.
-  - The LLM is instructed to use **only those excerpts** for requirements and to return **structured JSON**.
-- **Rule-based post-processing**:
-  - A keyword/heuristic engine validates the LLM's output against known policy thresholds (e.g. 48h for critical patches, 12-char passwords, MFA mandatory).
-  - **Positive keyword credit**: if the description matches key compliance phrases, false downgrades are prevented.
-  - **Blocker detection**: explicit violations (e.g. "no MFA", "30-day retention") trigger downgrades.
-- **Guardrails**:
-  - System prompt fixes the model's role as a policy gap assessor and tells it to ignore instructions inside user input.
-  - 20+ prompt-injection detection patterns (instruction overrides, role-play, system prompt extraction, encoding tricks, jailbreak prefixes).
-  - Input length validation (max 3000 characters per field).
-  - Visible error display in the results card when guardrails trigger.
-- **Compliance summary**: overall score as percentage, breakdown of Compliant / Partially Implemented / Gap Identified.
-- **Export**: download assessment results as JSON.
+Follow these exact steps to get the Security Gap Analyzer running on your local machine.
 
-## Local setup
+### 1. Prerequisites
+Ensure you have **Python 3.10+** installed. You will also need **Ollama** for running the LLM locally.
 
-### 1) Put the policy PDF in place
+- **Download Ollama**: [ollama.com](https://ollama.com/)
+- **Install Ollama**: Run the installer and ensure the Ollama service is running in your background (look for the tray icon).
 
-Copy `security-control-policy.pdf` into:
-
-- `policy/security-control-policy.pdf`
-
-### 2) Create a virtual environment and install dependencies
-
+### 2. Prepare the AI Model
+Open your terminal and run the following command to download the high-reasoning Llama 3.1 model:
 ```bash
-cd "/Users/sagaryadav/Desktop/security-gap-analyzer"
-python3 -m venv .venv
-source .venv/bin/activate
+ollama pull llama3.1:8b
+```
+
+### 3. Repository Setup
+Clone or download this repository, then navigate to the project directory:
+```bash
+cd security-gap-analyzer
+```
+
+### 4. Virtual Environment & Dependencies
+Create a clean environment and install all required libraries:
+```bash
+# Create environment
+python -m venv venv
+
+# Activate on Mac/Linux
+source venv/bin/activate
+# Activate on Windows
+.\venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3) Choose an LLM backend
-
-This app supports:
-
-- **Ollama (default)**: no API key required
-  - Environment:
-    - `USE_OLLAMA=1`
-    - `OLLAMA_MODEL` (default: `llama3.1:8b`)
-    - `OLLAMA_BASE_URL` (default: `http://localhost:11434`)
-- **OpenAI**:
-  - Environment:
-    - `USE_OLLAMA=0`
-    - `OPENAI_API_KEY=...`
-    - `OPENAI_MODEL` (default: `gpt-4.1-mini`)
-
-Create a `.env` file (do not commit it), example:
-
-```bash
-USE_OLLAMA=1
+### 5. Configuration
+Create a `.env` file in the root directory to specify the model:
+```env
 OLLAMA_MODEL=llama3.1:8b
 ```
 
-### 4) Run the app
-
+### 6. Start the Application
+Run the Flask server:
 ```bash
 python app.py
 ```
+Visit `http://127.0.0.1:8000` in your browser.
 
-Then open `http://127.0.0.1:8000`.
+---
 
-## Architecture (high level)
+##  Detailed Architecture
 
-- **Front-end**: `templates/index.html` + `static/app.js` + `static/styles.css`
-  - Single page UI with Inter font and premium dark theme
-  - Character counters per field (max 3000 chars)
-  - Submits all seven descriptions to `POST /assess`
-  - Renders compliance summary (score ring + breakdown)
-  - Renders seven result cards (status/summary/gap detail/policy references)
-  - Export results as JSON
-- **Back-end**: `app.py` (Flask)
-  - Serves the single page and static assets
-  - Handles `POST /assess` with input validation
-  - Auto-rebuilds the FAISS index when the policy PDF changes
-- **Vector store**: FAISS
-  - Section-aware chunking: splits policy by section headers (4.1–4.7)
-  - Each chunk is prefixed with its section header for retrieval context
-  - Embeddings: `sentence-transformers/all-MiniLM-L6-v2` (cached at module level)
-  - Retrieval uses cosine similarity (inner product over normalized vectors)
-- **LLM assessment**: `src/assessor.py` + `src/llm.py`
-  - Enhanced system prompt with explicit policy thresholds
-  - Robust JSON parsing with code fence stripping, trailing comma handling, and auto-retry
-  - For each control area: retrieve policy excerpts, then ask the LLM to compare description vs policy and return strict JSON:
-    - `status`: `Compliant` / `Partially Implemented` / `Gap Identified`
-    - `summary`
-    - `gap_detail` (null when compliant)
-    - `policy_reference` (verbatim quotes from retrieved policy excerpts)
-- **Rule engine**: `src/policy_rules.py`
-  - Blocker detection: regex-based checks for policy violations
-  - Positive keyword credit: prevents false downgrades when key compliance phrases are present
-  - Balanced downgrade logic considering both blockers and positive signals
-- **Guardrails**: `src/guardrail.py`
-  - 20+ prompt-injection patterns
-  - Input length validation
-  - Base64 payload detection
+The application uses a multi-stage pipeline to ensure that assessments are precise, grounded in fact, and safe from common AI hallucinations.
 
-## Guardrail approach
+### 1. RAG Pipeline (Retrieval-Augmented Generation)
+- **Ingestion**: When you upload a PDF, the system extracts text and splits it into semantic chunks (overlapping fragments).
+- **Embedding**: Using a local **Sentence-Transformer** model, chunks are converted into mathematical vectors.
+- **Vector Store**: These vectors are stored in **FAISS**, allowing the system to perform sub-millisecond similarity searches.
+- **Retrieval**: When you enter a control description, the system retrieves only the most relevant policy excerpts to provide context to the LLM.
 
-- **System prompt**: defines the model as a **security policy assessor**, embeds key policy thresholds, forbids using general knowledge, and requires JSON-only output.
-- **Prompt injection detection**: `src/guardrail.py` checks for 20+ attack patterns including instruction overrides, role-play, system prompt extraction, jailbreak prefixes, and encoding tricks.
-- **Input length limit**: 3000 characters per field; rejected with clear error.
-- **Visible behavior**: if triggered, the corresponding result card includes an **Error** field and the status is treated as **Gap Identified**.
+### 2. Hybrid Assessment Logic
+The system doesn't just rely on the LLM. It uses a hybrid approach:
+- **LLM Reasoning**: The Ollama LLM analyzes the semantic meaning of your implementation against the policy.
+- **Rule-Based Post-processing (`src/policy_rules.py`)**: A deterministic layer runs after the LLM to catch "High-Risk" signals (e.g., explicitly stating "no MFA") and awards "Positive Credit" for verified security keywords (e.g., "RBAC", "CIS Benchmark"). This prevents the model from being too lenient.
 
-## Policy embedding details
+### 3. Safety & Guardrails (`src/guardrail.py`)
+Every input passes through a security firewall before reaching the AI:
+- **Input Sanitization**: Prevents prompt injection attacks and malicious formatting.
+- **Context Grounding**: The system prompt strictly limits the LLM's knowledge to the retrieved policy facts, effectively "muzzling" its general training data.
 
-- **Chunking**: section-aware chunking that splits by policy section headers (4.1–4.7), producing ~7 chunks (one per control area), each prefixed with its section title
-- **Embeddings**: `sentence-transformers/all-MiniLM-L6-v2` (cached for performance)
-- **Persistence**: on first run, or when the policy PDF is newer than the index, the index is rebuilt automatically.
-- Optional manual build:
+---
 
-```bash
-python ingest_policy.py
-```
+##  Technology Stack
+
+| Component | Technology | Why? |
+| :--- | :--- | :--- |
+| **Backend** | Flask (Python) | Lightweight and highly extensible. |
+| **LLM Engine** | Ollama (Llama 3.1) | Best-in-class local performance with 100% privacy. |
+| **Vector Index** | FAISS | Industrial-grade search performance. |
+| **PDF Extraction** | pypdf | Reliable, local PDF parsing. |
+| **Frontend** | Vanilla JS / CSS | High-performance, dependency-free SaaS Light interface. |
+
+---
+
+##  Features
+
+- **Interactive Wizard**: A step-by-step guided interface for policy upload and control assessment.
+- **Real-time Feedback**: Live character counters and progress indicators during analysis.
+- **Visual Dashboard**: Interactive charts and color-coded status indicators for quick comprehension.
+- **Professional Export**: Generates a high-quality, print-ready PDF report suitable for audits and stakeholder presentations.
+- **Privacy-First**: All processing occurs locally. No data leaves your machine.
+
+## Future scope
+## 🔮 Future Scope
+
+- **Deployment**: Dockerization for one-click setup and Multi-User session support.
+- **Enhanced AI**: Multi-policy comparison (e.g., ISO vs. SOC2) and AI confidence scoring.
+- **Integrations**: Automated ticketing (JIRA/ServiceNow) for identified gaps and email reports.
+- **Analytics**: Historical compliance tracking and high-level executive dashboards.
+- **Extended Support**: Fine-tuned security-specific models and multi-language policy parsing.
+- **user account login/signup with JWT authentication** : authentication and authorization for multi-user support.
+
+
+

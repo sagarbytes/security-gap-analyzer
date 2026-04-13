@@ -19,9 +19,9 @@ def _lower(s: str) -> str:
     return (s or "").lower()
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  GENERAL BLOCKERS (Gibberish & meaningless input catch-all)
-# ═══════════════════════════════════════════════════════════════════════════
+
+
+
 
 def _blockers_general(desc: str) -> list[tuple[str, Severity]]:
     t = desc.strip()
@@ -30,40 +30,40 @@ def _blockers_general(desc: str) -> list[tuple[str, Severity]]:
     if not t:
         return out
         
-    # Check 1: Absolute length threshold
+    
     if len(t) < 15:
         out.append(("Input lacks sufficient detail to verify compliance.", "severe"))
         return out
         
-    # Check 2: Word count and dictionary sanity
+    
     words = [w for w in re.split(r'\s+', t) if w]
     if len(words) < 3:
         out.append(("Input too brief or lacks meaningful context.", "severe"))
         
-    # Check 3: Repetition (e.g. "jjjjj", "dddd,ddd")
+    
     if re.search(r"([a-zA-Z])\1{5,}", t):
         out.append(("Input contains repetitive gibberish.", "severe"))
         
     return out
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  BLOCKER RULES  (detect policy violations → may downgrade status)
-# ═══════════════════════════════════════════════════════════════════════════
+
+
+
 
 
 def _blockers_authentication(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # MFA missing or partial (Admins only is a Gap)
+    
     if re.search(r"mfa\s+(only|just)\s+for\s+admin|no\s+mfa\b|password\s+only|single[- ]factor", t):
         out.append((
             "Input describes missing or insufficient MFA coverage (e.g. Admins only). Policy requires universal MFA.",
             "severe",
         ))
 
-    # Default credentials not addressed
+    
     if "default" in t and re.search(
         r"default\s+(password|cred|login)|leave\s+default|vendor\s+default|not\s+(rotated|changed)\s+yet", t
     ):
@@ -79,14 +79,14 @@ def _blockers_logging(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # Complete lack of logging
+    
     if re.search(r"no\s+logging|we\s+do\s+not\s+log|logs\s+disabled|never\s+review", t):
         out.append((
             "Input explicitly states no telemetry, logging, or review pipeline is established.",
             "severe",
         ))
 
-    # Only local troubleshooting logs
+    
     if re.search(
         r"only\s+when\s+troubleshoot|local\s+files?\s+only|no\s+central\s+logging",
         t,
@@ -103,42 +103,42 @@ def _blockers_session(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # Sessions never timeout
+    
     if re.search(r"no\s+timeout|never\s+expire|permanent\s+session|sessions?\s+do\s+not\s+timeout", t):
         out.append((
             "Input declares explicit absence of inactivity timeouts.",
             "severe",
         ))
 
-    # Excessive timeouts (e.g. 60 minutes when policy likely requires 15/5)
+    
     if re.search(r"\b(30|60|90|120)\s*(min|minute)", t) or "1\s*hour" in t:
         out.append((
             "Input describes session timeouts (≥30m) that significantly exceed typical security policy thresholds (15m).",
             "severe",
         ))
 
-    # Missing logout invalidation
+    
     if re.search(r"not\s+invalidated\s+when\s+logout|not\s+invalidated\s+on\s+logout|logout\s+does\s+not\s+expire", t):
         out.append((
             "Input explicitly states session tokens are not invalidated upon user logout.",
             "severe",
         ))
 
-    # Insecure token storage / logic
+    
     if "localstorage" in t or "local storage" in t or "unencrypted" in t:
         out.append((
             "Input indicates high-risk token storage capabilities or plaintext transport.",
             "moderate",
         ))
 
-    # Concurrent logins allowed
+    
     if re.search(r"not\s+prevent\s+concurrent|concurrent\s+logins?\s+(allowed|permitted|not\s+prevented)", t):
         out.append((
             "Input states that concurrent logins are not prevented, contrary to security best practices.",
             "moderate",
         ))
 
-    # Predictable session IDs
+    
     if re.search(r"(?<!non[- ])(?<!un)predictable\s+session|sequential\s+(session|id|token)", t):
         out.append((
             "Input explicitly defines session identifiers as vulnerable or predictable.",
@@ -152,21 +152,21 @@ def _blockers_patching(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # Adhoc or no patching
+    
     if re.search(r"never\s+patch|no\s+formal|ad\s*hoc\s+patch|manual.{0,30}patch\s+only", t):
         out.append((
             "Input explicitly denies possessing an active or automated patching structure.",
             "severe",
         ))
 
-    # Long patch windows (2-3 weeks, 30 days)
+    
     if re.search(r"2-3\s+weeks?|30\s+days?|within\s+a\s+month|whenever\s+staff\s+available", t):
         out.append((
             "Input describes extremely slow vulnerability remediation windows (2+ weeks). Policy requires 48-72h for critical patches.",
             "severe",
         ))
 
-    # Legacy systems without controls
+    
     if re.search(r"legacy|unsupported|end of life|eol", t) and not re.search(
         r"compensat|documented|risk\s+accept|isolated", t
     ):
@@ -182,7 +182,7 @@ def _blockers_authorization(desc: str) -> list[tuple[str, Severity]]:
     t = _lower(desc)
     out: list[tuple[str, Severity]] = []
 
-    # Completely unverified access
+    
     if re.search(r"never\s+review|everyone\s+has\s+access|no\s+restrictions", t):
         out.append((
             "Input fundamentally admits to providing completely unrestricted or unreviewed access.",
@@ -202,7 +202,7 @@ def _blockers_compliance(desc: str) -> list[tuple[str, Severity]]:
             "moderate",
         ))
 
-    # Third-party compliance not mentioned
+    
     if re.search(r"third.party|vendor|external\s+service", t) and not re.search(
         r"soc\s*2|iso\s*27001|compliance\s+verif|audit", t
     ):
@@ -227,9 +227,9 @@ def _blockers_hardening(desc: str) -> list[tuple[str, Severity]]:
     return out
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  POSITIVE KEYWORD CREDIT  (detect compliance signals → prevent false downgrades)
-# ═══════════════════════════════════════════════════════════════════════════
+
+
+
 
 _POSITIVE_KEYWORDS: dict[str, list[str]] = {
     "Authorization": [
@@ -285,9 +285,9 @@ def _count_positive_matches(control_area: str, description: str) -> int:
     return sum(1 for p in patterns if re.search(p, t))
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  DISPATCH TABLE
-# ═══════════════════════════════════════════════════════════════════════════
+
+
+
 
 BLOCKERS_BY_AREA: dict[str, callable] = {
     "Authorization": _blockers_authorization,
@@ -309,9 +309,9 @@ def get_rule_blockers(
     return fn(description)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  APPLY RULE DOWNGRADE  (main entry for post-LLM correction)
-# ═══════════════════════════════════════════════════════════════════════════
+
+
+
 
 def apply_rule_downgrade(control_area: str, description: str, current_status: str):
     """
@@ -329,37 +329,37 @@ def apply_rule_downgrade(control_area: str, description: str, current_status: st
     moderate_count = sum(1 for _, s in blockers if s == "moderate")
     notes = [b[0] for b in blockers]
 
-    # ── Gibberish / Meaningless Text → Gap Identified ──
+    
     if any("Input lacks sufficient detail" in b[0] or "Input too brief" in b[0] or "repetitive gibberish" in b[0] for b in blockers):
         return "Gap Identified", notes
 
-    # ── Strong positive signal can compensate moderate-only blockers ──
+    
     if severe_count == 0 and positive_count >= 3 and moderate_count <= 2:
-        # User clearly describes compliance — moderate-only notes are informational
+        
         return current_status, notes
 
-    # ── Multiple severe (≥2) → Gap ──
+    
     if severe_count >= 2:
         return "Gap Identified", notes
 
-    # ── One severe → Gap (if no strong positive) ──
+    
     if severe_count == 1:
-        # If there's 1 severe gap, we force a Gap status unless the positive signal is extremely strong (>4)
+        
         if positive_count >= 5:
             return "Partially Implemented", notes
         return "Gap Identified", notes
 
-    # ── Multiple moderate (≥2) without positive credit → Partial ──
+    
     if moderate_count >= 2:
         return "Partially Implemented", notes
 
-    # ── Single moderate → keep original with note ──
+    
     return current_status, notes
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  POLICY REFERENCE HELPER
-# ═══════════════════════════════════════════════════════════════════════════
+
+
+
 
 def ensure_policy_references_non_empty(
     refs: list[str],

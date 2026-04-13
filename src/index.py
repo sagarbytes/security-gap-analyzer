@@ -11,9 +11,9 @@ from sentence_transformers import SentenceTransformer
 
 EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-# ---------------------------------------------------------------------------
-# Module-level model cache — avoids reloading the model per query
-# ---------------------------------------------------------------------------
+
+
+
 _model_cache: SentenceTransformer | None = None
 
 
@@ -30,9 +30,9 @@ class Chunk:
     text: str
 
 
-# ---------------------------------------------------------------------------
+
 # PDF reading
-# ---------------------------------------------------------------------------
+
 def _read_pdf_text(pdf_path: Path) -> str:
     reader = PdfReader(str(pdf_path))
     parts: list[str] = []
@@ -45,9 +45,9 @@ def _normalize_whitespace(s: str) -> str:
     return " ".join((s or "").split())
 
 
-# ---------------------------------------------------------------------------
-# Section-aware chunking
-# ---------------------------------------------------------------------------
+
+
+
 _SECTION_RE = re.compile(
     r"(4\.\d+)\s+(.*?)(?=\n|$)", re.IGNORECASE
 )
@@ -65,11 +65,11 @@ SECTION_TITLES: dict[str, str] = {
 
 def _split_by_sections(text: str) -> list[tuple[str, str]]:
     """Split policy text into (section_header, section_body) pairs."""
-    # Find all section header positions
+    
     matches = list(_SECTION_RE.finditer(text))
 
     if not matches:
-        # Fallback: treat entire text as one section
+        
         return [("Policy", text)]
 
     sections: list[tuple[str, str]] = []
@@ -120,7 +120,7 @@ def _chunk_section(
         buf_len += len(p) + 1
     flush()
 
-    # Prefix each chunk with segment header for retrieval context
+    
     return [f"[{section_header}] {chunk}" for chunk in raw_chunks]
 
 
@@ -136,7 +136,7 @@ def _chunk_policy_text(text: str, max_chars: int = 500, overlap: int = 80) -> li
             chunks.append(Chunk(id=f"chunk_{i}", text=sc))
             i += 1
 
-    # Fallback if chunking produced nothing
+    
     if not chunks:
         normalized = _normalize_whitespace(text)
         chunks.append(Chunk(id="chunk_0", text=normalized))
@@ -144,9 +144,9 @@ def _chunk_policy_text(text: str, max_chars: int = 500, overlap: int = 80) -> li
     return chunks
 
 
-# ---------------------------------------------------------------------------
-# Index build / load / retrieval
-# ---------------------------------------------------------------------------
+
+
+
 def build_index(policy_pdf_path: Path, data_dir: Path) -> None:
     if not policy_pdf_path.exists():
         raise FileNotFoundError(
@@ -183,7 +183,7 @@ def ensure_index(policy_pdf_path: Path, data_dir: Path) -> None:
     if not index_path.exists() or not chunks_path.exists():
         needs_rebuild = True
     elif policy_pdf_path.exists():
-        # Rebuild if PDF is newer than the index
+        
         pdf_mtime = policy_pdf_path.stat().st_mtime
         idx_mtime = index_path.stat().st_mtime
         if pdf_mtime > idx_mtime:
