@@ -934,7 +934,7 @@ textarea:focus {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Loading overlay — White Contrast Interactive Design
+   Loading overlay — Premium Assessment Panel
    ═══════════════════════════════════════════════════════════════ */
 
 .loading-overlay {
@@ -945,10 +945,10 @@ textarea:focus {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  transition: opacity 0.35s ease, visibility 0.35s ease;
+  background: rgba(8, 12, 28, 0.72);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  transition: opacity 0.4s ease, visibility 0.4s ease;
 }
 
 .loading-overlay--hidden {
@@ -961,121 +961,226 @@ textarea:focus {
   position: relative;
   text-align: center;
   width: 100%;
-  max-width: 460px;
-  min-height: 300px;
-  padding: 48px 36px 40px;
-  border-radius: 24px;
+  max-width: 480px;
+  /* Fixed height so the box never resizes */
+  height: 420px;
+  padding: 36px 40px 32px;
+  border-radius: 6px;
   background: #ffffff;
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.18);
   box-shadow:
-    0 8px 32px rgba(99, 102, 241, 0.10),
-    0 24px 80px rgba(0, 0, 0, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 0 0 1px rgba(255,255,255,0.08) inset,
+    0 8px 40px rgba(99, 102, 241, 0.14),
+    0 32px 80px rgba(0, 0, 0, 0.18);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 0;
   overflow: hidden;
 }
 
-/* Animated scanning line across the panel */
+/* Animated indigo scan line at the top */
 .loading-panel::before {
   content: "";
   position: absolute;
   top: 0;
-  left: -100%;
-  width: 100%;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, #6366F1, #818CF8, transparent);
-  animation: scanLine 2.2s ease-in-out infinite;
+  left: -110%;
+  width: 110%;
+  height: 2.5px;
+  background: linear-gradient(90deg, transparent 0%, #818CF8 40%, #6366F1 60%, transparent 100%);
+  animation: scanLine 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  border-radius: 0;
+  z-index: 10;
 }
 
 @keyframes scanLine {
-  0%   { left: -100%; }
-  100% { left: 100%; }
+  0%   { left: -110%; }
+  100% { left: 110%; }
 }
 
-/* Subtle shimmer background */
+/* Faint grid mesh background */
 .loading-panel::after {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 24px;
-  background: linear-gradient(
-    135deg,
-    rgba(99, 102, 241, 0.03) 0%,
-    transparent 40%,
-    rgba(99, 102, 241, 0.02) 60%,
-    transparent 100%
-  );
-  animation: shimmer 3s ease-in-out infinite alternate;
+  border-radius: 0;
+  background-image:
+    linear-gradient(rgba(99,102,241,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99,102,241,0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
   pointer-events: none;
+  z-index: 0;
 }
 
-@keyframes shimmer {
-  0%   { opacity: 0.5; }
-  100% { opacity: 1; }
+/* ── Step badge chip ── */
+.loading-badge {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #6366F1 0%, #818CF8 100%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 22px;
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.35);
+  transition: opacity 0.3s ease;
 }
 
-/* Pulsing ring spinner */
+.loading-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.8);
+  animation: badgePulse 1.4s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* ── Three-ring spinner ── */
 .spinner {
   position: relative;
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 22px;
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 20px;
+  z-index: 2;
+}
+
+.spinner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
-  border: 3px solid rgba(99, 102, 241, 0.12);
+  border: 2.5px solid rgba(99, 102, 241, 0.10);
   border-top-color: #6366F1;
-  animation: spin 0.85s linear infinite;
-  z-index: 1;
+  animation: spin 0.9s linear infinite;
 }
 
 .spinner::after {
   content: "";
   position: absolute;
-  inset: -8px;
+  inset: 7px;
   border-radius: 50%;
-  border: 2px solid transparent;
-  border-top-color: rgba(99, 102, 241, 0.2);
-  animation: spin 1.6s linear infinite reverse;
+  border: 2px solid rgba(99, 102, 241, 0.08);
+  border-bottom-color: #818CF8;
+  animation: spin 1.4s linear infinite reverse;
+}
+
+/* Inner pulse dot */
+.spinner-inner {
+  position: absolute;
+  inset: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366F1, #818CF8);
+  animation: innerPulse 1.8s ease-in-out infinite;
+  box-shadow: 0 0 10px rgba(99,102,241,0.4);
+}
+
+@keyframes innerPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(0.7); opacity: 0.6; }
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
-/* Progress label */
+/* ── Progress step label ── */
 .loading-progress {
   position: relative;
-  z-index: 1;
-  margin: 0 0 16px;
+  z-index: 2;
+  margin: 0 0 20px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: #1E293B;
   letter-spacing: 0.01em;
+  transition: opacity 0.3s ease;
 }
 
-/* Quote text */
+/* ── Quote block ── */
+.loading-quote-block {
+  position: relative;
+  z-index: 2;
+  margin: 0 0 24px;
+  padding: 0;
+  width: 100%;
+}
+
+.quote-icon {
+  display: block;
+  font-size: 40px;
+  line-height: 1;
+  color: #6366F1;
+  opacity: 0.25;
+  font-family: Georgia, serif;
+  margin-bottom: -6px;
+  text-align: left;
+  padding-left: 4px;
+  user-select: none;
+}
+
 .loading-quote {
   position: relative;
   z-index: 1;
-  margin: 0 auto;
+  margin: 0;
   font-size: 13px;
   line-height: 1.6;
-  color: #64748B;
+  color: #475569;
   font-style: italic;
-  min-height: 80px !important;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  transition: opacity 0.25s ease;
-  max-width: 340px;
-  padding: 14px 20px;
+  /* Fixed height — long quotes never grow the box */
+  height: 78px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  padding: 12px 16px 12px 14px;
   background: #F8FAFC;
-  border-radius: 12px;
+  border-radius: 4px;
   border: 1px solid #E2E8F0;
+  border-left: 3px solid #6366F1;
+  text-align: left;
+  transition: opacity 0.3s ease;
+  word-break: break-word;
+}
+
+/* ── Footer strip ── */
+.loading-footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #94A3B8;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.loading-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #CBD5E1;
+  animation: dotBlink 2s ease-in-out infinite;
+}
+
+.loading-dot:last-child {
+  animation-delay: 1s;
+}
+
+@keyframes dotBlink {
+  0%, 100% { opacity: 0.3; }
+  50%       { opacity: 1; }
 }
 
 .results--loading #resultsGrid {
@@ -1087,6 +1192,7 @@ textarea:focus {
   margin: 0;
   overflow: hidden;
 }
+
 
 /* ── Animations ── */
 .results-grid--fade-in {

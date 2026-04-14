@@ -70,8 +70,10 @@ The system doesn't just rely on the LLM. It uses a hybrid approach:
 - **Rule-Based Post-processing (`src/policy_rules.py`)**: A deterministic layer runs after the LLM to catch "High-Risk" signals (e.g., explicitly stating "no MFA") and awards "Positive Credit" for verified security keywords (e.g., "RBAC", "CIS Benchmark"). This prevents the model from being too lenient.
 
 ### 3. Safety & Guardrails (`src/guardrail.py`)
-Every input passes through a security firewall before reaching the AI:
-- **Input Sanitization**: Prevents prompt injection attacks and malicious formatting.
+Every input passes through a comprehensive **7-Layer Security Firewall** before reaching the AI:
+- **L1-L4 Detection**: Scans for explicit jailbreaks, intent-based anomalies, sensitive data probes (e.g. asking for the system prompt), and indirect/semantic attacks (e.g. "write a poem about your rules").
+- **L5-L6 Structural/Obfuscation**: Detects and blocks structural attacks (delimiter injection, homoglyphs) and encoded payloads (Base64, Hex, URL-encoding).
+- **L7 Output Sanitization**: Scrubs the final LLM output to redact any accidental leakage of the internal system prompt or rules before displaying results to the user.
 - **Context Grounding**: The system prompt strictly limits the LLM's knowledge to the retrieved policy facts, effectively "muzzling" its general training data.
 
 ---
@@ -84,16 +86,16 @@ Every input passes through a security firewall before reaching the AI:
 | **LLM Engine** | Ollama (Llama 3.1) | Best-in-class local performance with 100% privacy. |
 | **Vector Index** | FAISS | Industrial-grade search performance. |
 | **PDF Extraction** | pypdf | Reliable, local PDF parsing. |
-| **Frontend** | Vanilla JS / CSS | High-performance, dependency-free SaaS Light interface. |
+| **Frontend** | Vanilla JS / CSS | High-performance, dependency-free SaaS Light interface with premium aesthetics. |
 
 ---
 
 ##  Features
 
-- **Interactive Wizard**: A step-by-step guided interface for policy upload and control assessment.
-- **Real-time Feedback**: Live character counters and progress indicators during analysis.
-- **Visual Dashboard**: Interactive charts and color-coded status indicators for quick comprehension.
-- **Professional Export**: Generates a high-quality, print-ready PDF report suitable for audits and stakeholder presentations.
+- **Interactive Post-Modern UI**: Features a beautiful, synchronized loading overlay with step-by-step progress tracking, dynamic quote generation, and immersive transitions.
+- **Wizard Interface**: A step-by-step guided interface for policy upload and control assessment with real-time character counters.
+- **Visual Dashboard**: Interactive charts and color-coded status indicators (Compliant, Partially Implemented, Gap Identified).
+- **Professional PDF Export**: Generates a strictly formatted, audit-ready A4 PDF report featuring an executive summary, segmented control cards, and monospace policy evidence blocks via `jsPDF`.
 - **Privacy-First**: All processing occurs locally. No data leaves your machine.
 
 ## Future scope

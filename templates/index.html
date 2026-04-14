@@ -14,7 +14,8 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/styles.css?v=2.8" />
+    <link rel="stylesheet" href="/static/styles.css?v=3.0" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   </head>
   <body>
@@ -26,11 +27,34 @@
       aria-busy="false"
     >
       <div class="loading-panel">
-        <div class="spinner" aria-hidden="true"></div>
+        <!-- Top accent bar (CSS ::before handles the scan line) -->
+
+        <!-- Step badge -->
+        <div class="loading-badge" id="loadingBadge">Initializing…</div>
+
+        <!-- Spinner -->
+        <div class="spinner" aria-hidden="true">
+          <div class="spinner-inner"></div>
+        </div>
+
+        <!-- Progress step -->
         <p class="loading-progress" id="loadingProgress">Analyzing controls…</p>
-        <p class="loading-quote" id="loadingQuote"></p>
+
+        <!-- Quote block -->
+        <blockquote class="loading-quote-block">
+          <span class="quote-icon">"</span>
+          <p class="loading-quote" id="loadingQuote"></p>
+        </blockquote>
+
+        <!-- Footer -->
+        <div class="loading-footer">
+          <span class="loading-dot"></span>
+          Powered by Local AI &nbsp;·&nbsp; Policy-Grounded
+          <span class="loading-dot"></span>
+        </div>
       </div>
     </div>
+
 
     <div class="page">
       <!-- Header -->
@@ -294,7 +318,7 @@
       </footer>
     </div>
 
-    <script src="/static/app.js?v=2.9"></script>
+    <script src="/static/app.js?v=3.0"></script>
     <script>
       // Force Hover Logic (v2.7 Inlined to bypass cache)
       document.addEventListener('DOMContentLoaded', () => {

@@ -11,7 +11,7 @@ from src.guardrail import MAX_INPUT_LENGTH
 from src.index import ensure_index
 
 
-load_dotenv()
+load_dotenv()   
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"

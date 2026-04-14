@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from src.guardrail import detect_prompt_injection
+from src.guardrail import detect_prompt_injection, sanitize_output
 from src.index import retrieve_relevant
 from src.llm import LLMError, chat_json
 from src.policy_rules import apply_rule_downgrade, ensure_policy_references_non_empty
@@ -264,6 +264,13 @@ POLICY EXCERPTS:
         ])
 
         assessment = _coerce_assessment(control_area, obj)
+
+        # ── Layer 7: Output guardrail — scrub any accidental system prompt leakage ──
+        assessment.summary = sanitize_output(assessment.summary) or assessment.summary
+        assessment.gap_detail = sanitize_output(assessment.gap_detail)
+        assessment.policy_reference = [
+            sanitize_output(r) or r for r in assessment.policy_reference
+        ]
 
         return _finalize_with_rules_and_refs(
             control_area, description, assessment, policy_chunks

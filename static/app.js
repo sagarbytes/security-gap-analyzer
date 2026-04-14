@@ -128,40 +128,56 @@ function hideLoading() {
   if (resultsSection) resultsSection.classList.remove("results--loading");
 }
 
-function startLoadingContent(quoteEl, progressEl, quoteMs = 2600, progressMs = 3200) {
+// Badge labels paired with each progress step
+const BADGE_LABELS = [
+  "Analyzing",
+  "Retrieving",
+  "Validating",
+  "Checking",
+  "Finalizing",
+];
+
+function startLoadingContent(quoteEl, progressEl, intervalMs = 3200) {
   const quoteOrder = shuffleArray(LOADING_QUOTES);
-  let qi = 0;
-  
-  const updateQuote = () => {
-    quoteEl.style.opacity = 0;
+  let tick = 0;
+
+  const badgeEl = document.getElementById("loadingBadge");
+
+  // Set initial state immediately (no wait)
+  const applyTick = () => {
+    const stepIdx  = tick % PROGRESS_STEPS.length;
+    const badgeIdx = tick % BADGE_LABELS.length;
+    const quoteIdx = tick % quoteOrder.length;
+
+    // Fade everything out together
+    if (progressEl) progressEl.style.opacity = "0";
+    if (quoteEl)    quoteEl.style.opacity    = "0";
+    if (badgeEl)    badgeEl.style.opacity    = "0";
+
     setTimeout(() => {
-      quoteEl.textContent = quoteOrder[qi];
-      quoteEl.style.opacity = 1;
-      qi = (qi + 1) % quoteOrder.length;
-      // Re-shuffle when we finish the list to keep it fresh but non-repeating
-      if (qi === 0) {
-        // We could re-shuffle here if we wanted
-      }
-    }, 200);
+      if (progressEl) progressEl.textContent = PROGRESS_STEPS[stepIdx];
+      if (quoteEl)    quoteEl.textContent    = quoteOrder[quoteIdx];
+      if (badgeEl)    badgeEl.textContent    = BADGE_LABELS[badgeIdx] + "…";
+
+      // Fade everything back in together
+      if (progressEl) progressEl.style.opacity = "1";
+      if (quoteEl)    quoteEl.style.opacity    = "1";
+      if (badgeEl)    badgeEl.style.opacity    = "1";
+    }, 300);
+
+    tick++;
   };
 
-  updateQuote();
-  const quoteInterval = window.setInterval(updateQuote, quoteMs);
-
-  let pi = 0;
-  if (progressEl) progressEl.textContent = PROGRESS_STEPS[0];
-  const progressInterval = window.setInterval(() => {
-    pi = (pi + 1) % PROGRESS_STEPS.length;
-    if (progressEl) progressEl.textContent = PROGRESS_STEPS[pi];
-  }, progressMs);
-
-  return { quoteInterval, progressInterval };
+  applyTick(); // fire immediately on show
+  const handle = window.setInterval(applyTick, intervalMs);
+  return { handle };
 }
 
 function stopLoadingContent(ids) {
-  if (ids.quoteInterval != null) window.clearInterval(ids.quoteInterval);
-  if (ids.progressInterval != null) window.clearInterval(ids.progressInterval);
+  if (ids && ids.handle != null) window.clearInterval(ids.handle);
 }
+
+
 
 /* ── Compliance summary ── */
 
@@ -356,160 +372,344 @@ function exportJson() {
 
 function exportPdf() {
   if (!_lastResults || !_lastResults.results) return;
-  
+
   const results = _lastResults.results;
   const summary = _lastResults.summary;
-  const dateStr = new Date().toLocaleDateString();
-  
-  // 1. Create a well-structured print wrapper
-  const printWrapper = document.createElement("div");
-  printWrapper.style.padding = "40px";
-  printWrapper.style.background = "#ffffff";
-  printWrapper.style.color = "#111827";
-  printWrapper.style.fontFamily = "'Inter', sans-serif";
-  printWrapper.style.lineHeight = "1.5";
-  
-  // Header
-  const header = document.createElement("div");
-  header.style.borderBottom = "2px solid #6366F1";
-  header.style.marginBottom = "30px";
-  header.style.paddingBottom = "10px";
-  header.innerHTML = `
-    <h1 style="margin:0; font-size:24px; color:#111827;">Security Gap Analysis Report</h1>
-    <p style="margin:5px 0 0; color:#6B7280; font-size:14px;">Generated on ${dateStr}</p>
-  `;
-  printWrapper.appendChild(header);
+  const dateStr = new Date().toLocaleDateString(undefined, {
+    year: "numeric", month: "long", day: "numeric",
+  });
 
-  // Summary Card
-  if (summary) {
-    const sumCard = document.createElement("div");
-    sumCard.style.background = "#F8FAFC";
-    sumCard.style.padding = "20px";
-    sumCard.style.borderRadius = "12px";
-    sumCard.style.marginBottom = "40px";
-    sumCard.style.border = "1px solid #E5E7EB";
-    sumCard.innerHTML = `
-      <h2 style="margin:0 0 15px; font-size:18px;">Executive Summary</h2>
-      <div style="display:flex; gap:40px;">
-        <div>
-          <div style="font-size:12px; color:#6B7280; text-transform:uppercase;">Overall Score</div>
-          <div style="font-size:28px; font-weight:700; color:#6366F1;">${summary.compliance_score}%</div>
-        </div>
-        <div>
-          <div style="font-size:12px; color:#6B7280; text-transform:uppercase;">Statuses</div>
-          <div style="font-size:14px; margin-top:5px;">
-            <span style="color:#059669;">●</span> ${summary.compliant} Compliant &nbsp;&nbsp;
-            <span style="color:#D97706;">●</span> ${summary.partially_implemented} Partial &nbsp;&nbsp;
-            <span style="color:#DC2626;">●</span> ${summary.gap_identified} Gaps
-          </div>
-        </div>
-      </div>
-    `;
-    printWrapper.appendChild(sumCard);
+  // ── Use jsPDF directly (bundled inside html2pdf.bundle.min.js) ──
+  // This avoids html2canvas entirely — no DOM rendering issues.
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+
+  const pageW = doc.internal.pageSize.getWidth();   // 210
+  const pageH = doc.internal.pageSize.getHeight();   // 297
+  const marginL = 20;
+  const marginR = 20;
+  const contentW = pageW - marginL - marginR;        // 170
+  let y = 20; // current vertical cursor
+
+  // ── Helpers ──
+  function checkPage(needed) {
+    if (y + needed > pageH - 25) {
+      doc.addPage();
+      y = 20;
+      return true;
+    }
+    return false;
   }
 
-  // Findings List
-  const findingsHeader = document.createElement("h2");
-  findingsHeader.textContent = "Detailed Findings";
-  findingsHeader.style.fontSize = "18px";
-  findingsHeader.style.marginBottom = "20px";
-  printWrapper.appendChild(findingsHeader);
+  function wrapText(text, maxWidth, fontSize) {
+    doc.setFontSize(fontSize);
+    return doc.splitTextToSize(text || "", maxWidth);
+  }
 
-  for (const area of CONTROL_AREAS) {
+  // ── Colors ──
+  const COLORS = {
+    primary:  [99, 102, 241],   // #6366F1
+    black:    [17, 24, 39],     // #111827
+    dark:     [55, 65, 81],     // #374151
+    muted:    [107, 114, 128],  // #6B7280
+    light:    [148, 163, 184],  // #94A3B8
+    ok:       [5, 150, 105],    // #059669
+    warn:     [217, 119, 6],    // #D97706
+    bad:      [220, 38, 38],    // #DC2626
+    bgLight:  [248, 250, 252],  // #F8FAFC
+    border:   [226, 232, 240],  // #E2E8F0
+  };
+
+  function setColor(c) { doc.setTextColor(c[0], c[1], c[2]); }
+  function setDrawColor(c) { doc.setDrawColor(c[0], c[1], c[2]); }
+  function setFillColor(c) { doc.setFillColor(c[0], c[1], c[2]); }
+
+  // ══════════════════════════════════════════════════
+  // PAGE 1: HEADER
+  // ══════════════════════════════════════════════════
+
+  // Title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  setColor(COLORS.black);
+  doc.text("Security Compliance Report", marginL, y);
+  y += 8;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  setColor(COLORS.muted);
+  doc.text("Policy-Grounded Gap Assessment", marginL, y);
+
+  // Right-aligned date & confidential
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  setColor(COLORS.dark);
+  doc.text("CONFIDENTIAL", pageW - marginR, y - 8, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  setColor(COLORS.muted);
+  doc.text(dateStr, pageW - marginR, y, { align: "right" });
+  y += 4;
+
+  // Header divider line
+  setDrawColor(COLORS.primary);
+  doc.setLineWidth(0.6);
+  doc.line(marginL, y, pageW - marginR, y);
+  y += 12;
+
+  // ══════════════════════════════════════════════════
+  // EXECUTIVE SUMMARY BOX
+  // ══════════════════════════════════════════════════
+
+  const sumBoxH = 42;
+  setFillColor(COLORS.bgLight);
+  setDrawColor(COLORS.border);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(marginL, y, contentW, sumBoxH, 3, 3, "FD");
+
+  // Score
+  const scoreX = marginL + 30;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(36);
+  setColor(COLORS.primary);
+  doc.text(`${summary.compliance_score}%`, scoreX, y + 22, { align: "center" });
+
+  doc.setFontSize(8);
+  setColor(COLORS.muted);
+  doc.text("COMPLIANCE SCORE", scoreX, y + 28, { align: "center" });
+
+  // Vertical divider
+  setDrawColor(COLORS.border);
+  doc.line(marginL + 60, y + 6, marginL + 60, y + sumBoxH - 6);
+
+  // Breakdown
+  const bx = marginL + 70;
+  let by = y + 12;
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  setColor(COLORS.dark);
+  doc.text("Assessment Breakdown", bx, by);
+  by += 8;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+
+  // Compliant
+  setFillColor(COLORS.ok);
+  doc.circle(bx + 2, by - 1.2, 1.5, "F");
+  setColor(COLORS.dark);
+  doc.text(`Compliant`, bx + 7, by);
+  doc.text(`${summary.compliant} / 7`, bx + contentW - 80, by);
+  by += 7;
+
+  // Partial
+  setFillColor(COLORS.warn);
+  doc.circle(bx + 2, by - 1.2, 1.5, "F");
+  setColor(COLORS.dark);
+  doc.text(`Partially Implemented`, bx + 7, by);
+  doc.text(`${summary.partially_implemented} / 7`, bx + contentW - 80, by);
+  by += 7;
+
+  // Gap
+  setFillColor(COLORS.bad);
+  doc.circle(bx + 2, by - 1.2, 1.5, "F");
+  setColor(COLORS.dark);
+  doc.text(`Gap Identified`, bx + 7, by);
+  doc.text(`${summary.gap_identified} / 7`, bx + contentW - 80, by);
+
+  y += sumBoxH + 14;
+
+  // ══════════════════════════════════════════════════
+  // DETAILED FINDINGS HEADER
+  // ══════════════════════════════════════════════════
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  setColor(COLORS.black);
+  doc.text("Detailed Findings", marginL, y);
+  y += 3;
+  setDrawColor(COLORS.border);
+  doc.setLineWidth(0.2);
+  doc.line(marginL, y, pageW - marginR, y);
+  y += 8;
+
+  // ══════════════════════════════════════════════════
+  // EACH CONTROL AREA
+  // ══════════════════════════════════════════════════
+
+  for (let i = 0; i < CONTROL_AREAS.length; i++) {
+    const area = CONTROL_AREAS[i];
     const data = results[area];
     if (!data) continue;
 
-    const areaSection = document.createElement("div");
-    areaSection.style.marginBottom = "30px";
-    areaSection.style.paddingBottom = "20px";
-    areaSection.style.borderBottom = "1px solid #F1F5F9";
-    
-    const statusColor = data.status === "Compliant" ? "#059669" : (data.status === "Partially Implemented" ? "#D97706" : "#DC2626");
-    
-    areaSection.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <h3 style="margin:0; font-size:16px;">${area}</h3>
-        <span style="font-size:12px; font-weight:600; padding:4px 10px; border-radius:100px; background:${statusColor}15; color:${statusColor}; border:1px solid ${statusColor}30;">
-          ${data.status}
-        </span>
-      </div>
-      <div style="margin-bottom:12px;">
-        <div style="font-size:12px; font-weight:600; color:#6B7280; margin-bottom:4px;">SUMMARY</div>
-        <div style="font-size:14px; color:#374151;">${data.summary || "No summary provided."}</div>
-      </div>
-      ${data.status !== "Compliant" ? `
-      <div style="margin-bottom:12px;">
-        <div style="font-size:12px; font-weight:600; color:#6B7280; margin-bottom:4px;">GAP DETAIL</div>
-        <div style="font-size:14px; color:#374151;">${data.gap_detail || "No details provided."}</div>
-      </div>` : ""}
-      <div>
-        <div style="font-size:12px; font-weight:600; color:#6B7280; margin-bottom:4px;">POLICY REFERENCE</div>
-        <div style="font-size:13px; color:#4B5563; white-space:pre-wrap; background:#F8FAFC; padding:10px; border-radius:6px; border:1px solid #F1F5F9; font-family:monospace;">${
-          Array.isArray(data.policy_reference) ? data.policy_reference.join("\n") : (data.policy_reference || "—")
-        }</div>
-      </div>
-    `;
-    printWrapper.appendChild(areaSection);
+    // Pre-calculate wrapped text to estimate card height
+    const summaryLines = wrapText(data.summary || "No summary provided.", contentW - 10, 10);
+    const gapLines = (data.status !== "Compliant")
+      ? wrapText(data.gap_detail || "No specific gaps recorded.", contentW - 10, 10)
+      : [];
+    const policyText = Array.isArray(data.policy_reference)
+      ? data.policy_reference.join("\n")
+      : (data.policy_reference || "No policy references found.");
+    const policyLines = wrapText(policyText, contentW - 16, 9);
+
+    const cardH = 18                           // header + status row
+      + (summaryLines.length * 4.5) + 10       // summary section
+      + (gapLines.length > 0 ? (gapLines.length * 4.5) + 10 : 0)
+      + (policyLines.length * 3.8) + 14        // policy section
+      + 6;                                     // padding bottom
+
+    checkPage(Math.min(cardH, 80)); // Make sure at least the header fits
+
+    // ── Card border ──
+    const statusColor = data.status === "Compliant" ? COLORS.ok
+      : data.status === "Partially Implemented" ? COLORS.warn : COLORS.bad;
+
+    setDrawColor(COLORS.border);
+    doc.setLineWidth(0.2);
+    // Left accent bar
+    setFillColor(statusColor);
+    doc.rect(marginL, y, 1.5, Math.min(cardH, pageH - y - 25), "F");
+
+    // ── Area title & status badge ──
+    const cardLeft = marginL + 5;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    setColor(COLORS.black);
+    doc.text(`${i + 1}. ${area}`, cardLeft, y + 5);
+
+    // Status badge (right-aligned)
+    const badgeText = data.status.toUpperCase();
+    doc.setFontSize(8);
+    const badgeW = doc.getTextWidth(badgeText) + 8;
+    const badgeX = pageW - marginR - badgeW;
+    setFillColor(statusColor);
+    doc.roundedRect(badgeX, y + 0.5, badgeW, 6, 1.5, 1.5, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.text(badgeText, badgeX + 4, y + 4.5);
+
+    y += 10;
+
+    // Thin divider under header
+    setDrawColor(COLORS.border);
+    doc.line(cardLeft, y, pageW - marginR, y);
+    y += 5;
+
+    // ── SUMMARY section ──
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    setColor(COLORS.muted);
+    doc.text("SUMMARY", cardLeft, y);
+    y += 4;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    setColor(COLORS.dark);
+    for (const line of summaryLines) {
+      checkPage(6);
+      doc.text(line, cardLeft, y);
+      y += 4.5;
+    }
+    y += 3;
+
+    // ── GAP DETAIL section (non-compliant only) ──
+    if (gapLines.length > 0) {
+      checkPage(10);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      setColor(COLORS.muted);
+      doc.text("GAP ANALYSIS DETAIL", cardLeft, y);
+      y += 4;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      setColor(COLORS.dark);
+      for (const line of gapLines) {
+        checkPage(6);
+        doc.text(line, cardLeft, y);
+        y += 4.5;
+      }
+      y += 3;
+    }
+
+    // ── POLICY REFERENCE section ──
+    checkPage(12);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    setColor(COLORS.muted);
+    doc.text("POLICY EVIDENCE & REFERENCES", cardLeft, y);
+    y += 4;
+
+    // Policy box background
+    const policyBoxH = (policyLines.length * 3.8) + 6;
+    checkPage(policyBoxH + 4);
+    setFillColor(COLORS.bgLight);
+    setDrawColor(COLORS.border);
+    doc.setLineWidth(0.15);
+    doc.roundedRect(cardLeft, y - 1, contentW - 5, policyBoxH, 1.5, 1.5, "FD");
+
+    doc.setFont("courier", "normal");
+    doc.setFontSize(9);
+    setColor(COLORS.dark);
+    let py = y + 3;
+    for (const line of policyLines) {
+      checkPage(5);
+      doc.text(line, cardLeft + 3, py);
+      py += 3.8;
+    }
+    y = py + 4;
+
+    // Bottom spacing between cards
+    y += 6;
+
+    // Separator between cards (not after the last)
+    if (i < CONTROL_AREAS.length - 1) {
+      checkPage(4);
+      setDrawColor(COLORS.border);
+      doc.setLineWidth(0.1);
+      doc.line(marginL, y, pageW - marginR, y);
+      y += 8;
+    }
   }
 
-  // Final footer
-  const footer = document.createElement("div");
-  footer.style.marginTop = "40px";
-  footer.style.textAlign = "center";
-  footer.style.fontSize = "12px";
-  footer.style.color = "#94A3B8";
-  footer.textContent = "Strict Security Assessment Protocol - Automated Gap Analysis";
-  printWrapper.appendChild(footer);
+  // ══════════════════════════════════════════════════
+  // FOOTER
+  // ══════════════════════════════════════════════════
 
-  // 2. Render and Download
-  // html2canvas needs the element to be in the foreground to capture it.
-  // We use opacity:0.01 so it's nearly invisible but fully rendered.
-  printWrapper.style.position = "fixed";
-  printWrapper.style.left = "0";
-  printWrapper.style.top = "0";
-  printWrapper.style.width = "850px";
-  printWrapper.style.backgroundColor = "white";
-  printWrapper.style.zIndex = "99999";
-  printWrapper.style.opacity = "0.01";
-  printWrapper.style.overflow = "auto";
-  printWrapper.style.maxHeight = "100vh";
-  document.body.appendChild(printWrapper);
-  
-  const opt = {
-    margin:       15,
-    filename:     `Security_Compliance_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { 
-      scale: 2, 
-      useCORS: true, 
-      logging: false,
-      width: 850,
-      windowWidth: 850,
-      scrollY: 0,
-      y: 0,
-      onclone: (clonedDoc) => {
-        // Ensure the cloned element is fully visible for capture
-        const el = clonedDoc.querySelector('[data-pdf-wrapper]');
-        if (el) {
-          el.style.opacity = "1";
-          el.style.position = "static";
-          el.style.maxHeight = "none";
-        }
-      }
-    },
-    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  };
-  
-  // Tag the wrapper so onclone can find it
-  printWrapper.setAttribute("data-pdf-wrapper", "true");
-  
-  html2pdf().set(opt).from(printWrapper).save().then(() => {
-    document.body.removeChild(printWrapper);
-  }).catch(err => {
-    console.error("PDF Export failed:", err);
-    if (printWrapper.parentNode) document.body.removeChild(printWrapper);
-  });
+  checkPage(20);
+  y += 6;
+  setDrawColor(COLORS.border);
+  doc.setLineWidth(0.2);
+  doc.line(marginL, y, pageW - marginR, y);
+  y += 6;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  setColor(COLORS.light);
+  doc.text(
+    `This report was automatically generated on ${dateStr} by the Security Gap Analyzer.`,
+    pageW / 2, y, { align: "center" }
+  );
+  y += 4;
+  doc.text(
+    `© ${new Date().getFullYear()} Security Compliance Labs — Proprietary & Confidential`,
+    pageW / 2, y, { align: "center" }
+  );
+
+  // ── Page numbers on every page ──
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Page ${p} of ${totalPages}`, pageW / 2, pageH - 10, { align: "center" });
+  }
+
+  // ── Save ──
+  doc.save(`Security_Gap_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
+
 
 /* ── Main assessment flow ── */
 
