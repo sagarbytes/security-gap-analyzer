@@ -14,6 +14,8 @@ Detection layers (applied in order):
   6. Encoding / obfuscation — base64, hex payloads, Unicode escape sequences
   7. Output sanitiser       — scrubs any LLM response that accidentally echoes
                               internal system context (called from assessor.py)
+  8. XSS protection         — detects and strips HTML/JS injection attempts from
+                              both inputs and LLM outputs
 """
 from __future__ import annotations
 
@@ -336,7 +338,12 @@ def detect_prompt_injection(text: str) -> str | None:
     if not text:
         return None
 
-    
+    # ── Layer 8 (run first): XSS — block HTML/JS injection attempts ──────────
+    xss_result = detect_xss_in_input(text)
+    if xss_result:
+        return xss_result
+
+    # ── Layer 1: Length guard ─────────────────────────────────────────────────
     if len(text) > MAX_INPUT_LENGTH:
         return (
             f"Input too long ({len(text)} characters). "
@@ -345,7 +352,7 @@ def detect_prompt_injection(text: str) -> str | None:
 
     t_lower = text.lower()
 
-    
+    # ── Layer 2: Hard-block explicit patterns ─────────────────────────────────
     for pat in _HARD_BLOCK_COMPILED:
         if pat.search(t_lower):
             return "Security policy violation: explicit injection pattern detected. Input blocked."
@@ -414,6 +421,7 @@ def sanitize_output(text: str | None) -> str | None:
     or None if input is None.
 
     Called by assessor.py on summary, gap_detail, and policy_reference fields.
+    Also strips any XSS payloads that may appear in LLM output.
     """
     if not text:
         return text
@@ -421,7 +429,165 @@ def sanitize_output(text: str | None) -> str | None:
     result = text
     for pat in _OUTPUT_LEAK_COMPILED:
         if pat.search(result):
-            
             result = pat.sub(_LEAK_REDACTED, result)
 
+    # Layer 8: strip XSS from LLM output too
+    result = sanitize_xss_output(result)
+
     return result
+
+
+# ═══════════════════════════════════════════════════════════════
+# Layer 8 — XSS Protection
+# ═══════════════════════════════════════════════════════════════
+#
+# This layer operates in two modes:
+#   A) Input guard   — detect_xss_in_input() is called from detect_prompt_injection()
+#                      to block any input containing raw HTML/JS injection attempts.
+#   B) Output scrub  — sanitize_xss_output() is called from sanitize_output()
+#                      to strip any stray HTML/JS that the LLM may have echoed back.
+#
+# Defence-in-depth philosophy:
+#   • We block on the WAY IN  (don't let XSS payloads reach the LLM prompt).
+#   • We scrub on the WAY OUT (don't let XSS payloads reach the rendered UI).
+# ═══════════════════════════════════════════════════════════════
+
+
+# ── 8a: Patterns that indicate an XSS ATTACK ATTEMPT in user input ──────────
+#
+# These are patterns a malicious user might submit to try to inject HTML/JS
+# into the LLM prompt context or into rendered output downstream.
+
+_XSS_HARD_BLOCK_PATTERNS: list[str] = [
+
+    # Script tags (all variants including obfuscated spacing / case)
+    r"<\s*script\b[^>]*>",                     # <script ...>
+    r"<\s*/\s*script\s*>",                      # </script>
+    r"<\s*script\s*/?>",                        # <script/> self-closing
+
+    # JS event handler attributes — on* (onclick, onerror, onload, onmouseover…)
+    r"\bon\w{1,20}\s*=\s*[\"']?\s*(javascript:|[^\"'\s>]{0,200}[(\[])",
+
+    # javascript: / vbscript: URI schemes
+    r"\bjavascript\s*:",
+    r"\bvbscript\s*:",
+
+    # data: URI with script content
+    r"\bdata\s*:\s*text/html",
+    r"\bdata\s*:\s*application/javascript",
+
+    # Common XSS sink tags
+    r"<\s*iframe\b",
+    r"<\s*object\b",
+    r"<\s*embed\b",
+    r"<\s*applet\b",
+    r"<\s*meta\b[^>]*http-equiv\s*=\s*[\"']?refresh",
+    r"<\s*form\b",                              # form injection
+    r"<\s*input\b[^>]*type\s*=\s*[\"']?hidden",
+
+    # Expression / eval patterns
+    r"\beval\s*\(",
+    r"\bexpression\s*\(",                       # IE CSS expression()
+    r"\bsetTimeout\s*\(",
+    r"\bsetInterval\s*\(",
+    r"\bdocument\s*\.\s*(write|cookie|domain|location)",
+    r"\bwindow\s*\.\s*(location|open|eval|name)",
+    r"\blocation\s*\.\s*(href|replace|assign)\s*=",
+
+    # Template injection that could produce XSS
+    r"\{\{.*\}\}",                              # {{…}} Jinja/Angular/Handlebars
+    r"\$\{.*\}",                                # ${…} JS template literals
+
+    # Null-byte / character-stuffing tricks
+    r"%00",
+    r"\\u003c|\\u003e|\\u0022|\\u0027",        # \u003c = <, \u003e = >
+
+    # HTML entity obfuscation of < and >
+    r"&lt;\s*script",
+    r"&lt;\s*/\s*script",
+    r"&#\s*60\s*;.*script",                    # &#60; = <
+    r"&#x\s*3c\s*;.*script",                   # &#x3c; = <
+]
+
+_XSS_HARD_BLOCK_COMPILED = [
+    re.compile(p, re.IGNORECASE | re.DOTALL)
+    for p in _XSS_HARD_BLOCK_PATTERNS
+]
+
+
+# ── 8b: Tags / attributes to STRIP from LLM output (sanitize, not block) ────
+#
+# These patterns are used to scrub output — we don't block LLM responses,
+# we just strip dangerous markup before it's returned to the frontend.
+
+_XSS_STRIP_TAGS_RE = re.compile(
+    r"<\s*/?\s*("
+    r"script|iframe|object|embed|applet|form|meta|link|style|base|"
+    r"button|input|select|textarea|svg|math|template|slot|"
+    r"noscript|plaintext|xmp|listing"
+    r")\b[^>]*>",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Strip all on* event handler attributes
+_XSS_STRIP_EVENTS_RE = re.compile(
+    r"\s+on\w{1,20}\s*=\s*(?:[\"'][^\"']*[\"']|[^\s>]+)",
+    re.IGNORECASE,
+)
+
+# Strip javascript: / vbscript: href/src/action values
+_XSS_STRIP_URI_RE = re.compile(
+    r"""(?:href|src|action|formaction|xlink:href)\s*=\s*["']?\s*(?:javascript|vbscript)\s*:""",
+    re.IGNORECASE,
+)
+
+# Strip data: URIs that embed HTML or JS
+_XSS_STRIP_DATA_URI_RE = re.compile(
+    r"""(?:href|src)\s*=\s*["']?\s*data\s*:\s*(?:text/html|application/javascript)""",
+    re.IGNORECASE,
+)
+
+# Strip eval() / expression() calls in output
+_XSS_STRIP_EVAL_RE = re.compile(
+    r"\b(eval|expression|setTimeout|setInterval)\s*\(",
+    re.IGNORECASE,
+)
+
+# Strip {{...}} and ${...} template injection
+_XSS_STRIP_TEMPLATE_RE = re.compile(r"\{\{.*?\}\}|\$\{.*?\}", re.DOTALL)
+
+
+def sanitize_xss_output(text: str) -> str:
+    """
+    Strip XSS-dangerous constructs from a string that will be rendered in the UI.
+    Used on LLM response fields (summary, gap_detail, policy_reference).
+
+    Does NOT block — it strips and replaces. Safe to call on any text.
+    """
+    t = text
+    t = _XSS_STRIP_TAGS_RE.sub("[BLOCKED:TAG]", t)
+    t = _XSS_STRIP_EVENTS_RE.sub("", t)
+    t = _XSS_STRIP_URI_RE.sub("[BLOCKED:URI]", t)
+    t = _XSS_STRIP_DATA_URI_RE.sub("[BLOCKED:DATA-URI]", t)
+    t = _XSS_STRIP_EVAL_RE.sub("[BLOCKED:EVAL]", t)
+    t = _XSS_STRIP_TEMPLATE_RE.sub("[BLOCKED:TEMPLATE]", t)
+    return t
+
+
+def detect_xss_in_input(text: str) -> str | None:
+    """
+    Check whether user input contains an XSS injection attempt.
+    Returns an error message string if XSS is detected, else None.
+
+    Called from detect_prompt_injection() as Layer 8.
+    Distinct from sanitize_xss_output() — this is the INPUT block,
+    not the output scrub.
+    """
+    for pat in _XSS_HARD_BLOCK_COMPILED:
+        if pat.search(text):
+            return (
+                "Security policy violation: HTML/JavaScript injection attempt detected. "
+                "Input blocked to prevent XSS attacks."
+            )
+    return None
+
