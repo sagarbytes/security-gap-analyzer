@@ -803,6 +803,141 @@ async function runAssessment() {
   }
 }
 
+/* ── BRD Extraction ── */
+
+/**
+ * Set the BRD status bar text + style class.
+ * @param {string} text - Message to display
+ * @param {'idle'|'loading'|'success'|'error'} state
+ */
+function setBrdStatus(text, state = "idle") {
+  const bar = document.getElementById("brdStatus");
+  const txt = document.getElementById("brdStatusText");
+  if (!bar || !txt) return;
+  bar.className = "brd-status";
+  if (state === "loading") bar.classList.add("brd-status--loading");
+  if (state === "success") bar.classList.add("brd-status--success");
+  if (state === "error")   bar.classList.add("brd-status--error");
+  txt.textContent = text;
+}
+
+/**
+ * Remove all "info not found" badges and auto-fill highlights from Step 2 cards.
+ */
+function clearBrdCardDecorations() {
+  document.querySelectorAll(".info-not-found-badge").forEach((el) => el.remove());
+  document.querySelectorAll(".card--autofilled").forEach((el) =>
+    el.classList.remove("card--autofilled")
+  );
+}
+
+/**
+ * Call /extract-brd, get per-area text from the LLM, pre-fill Step 2 textareas,
+ * show "info not found" badges for areas the AI couldn't find, then go to Step 2.
+ */
+async function extractBrd() {
+  const brdInput = document.getElementById("brdFile");
+  const extractBtn = document.getElementById("extractBtn");
+
+  if (!brdInput || !brdInput.files.length) {
+    setBrdStatus("Please select a BRD PDF first.", "error");
+    return;
+  }
+
+  // Clear any previous decorations
+  clearBrdCardDecorations();
+
+  extractBtn.disabled = true;
+  setBrdStatus("Extracting security details from your document…", "loading");
+
+  try {
+    const formData = new FormData();
+    formData.append("brd_file", brdInput.files[0]);
+
+    const res = await fetch("/extract-brd", {
+      method: "POST",
+      body: formData,
+    });
+
+    const raw = await res.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch { data = null; }
+
+    if (!res.ok || !data) {
+      const errMsg = data?.error || `Server error (${res.status})`;
+      setBrdStatus(`Extraction failed: ${errMsg}`, "error");
+      extractBtn.disabled = false;
+      return;
+    }
+
+    if (data.error) {
+      setBrdStatus(`Error: ${data.error}`, "error");
+      extractBtn.disabled = false;
+      return;
+    }
+
+    const extractions = data.extractions || {};
+    const foundCount = data.found_count ?? 0;
+    const total = data.total ?? CONTROL_AREAS.length;
+
+    // Pre-fill each Step 2 textarea
+    for (const area of CONTROL_AREAS) {
+      const textarea = document.getElementById(area);
+      const cardEl = textarea ? textarea.closest(".card") : null;
+
+      // Remove any existing badge in this card
+      if (cardEl) {
+        cardEl.querySelectorAll(".info-not-found-badge").forEach((b) => b.remove());
+        cardEl.classList.remove("card--autofilled");
+      }
+
+      const extractedText = extractions[area];
+
+      if (extractedText && extractedText.trim()) {
+        // Fill the textarea with extracted text
+        if (textarea) {
+          textarea.value = extractedText.trim();
+          textarea.dispatchEvent(new Event("input")); // refresh char counter
+        }
+        // Show auto-filled highlight on the card
+        if (cardEl) cardEl.classList.add("card--autofilled");
+      } else {
+        // Area not found — inject the badge above the textarea
+        if (textarea && cardEl) {
+          const badge = document.createElement("div");
+          badge.className = "info-not-found-badge";
+          badge.innerHTML = `<span class="badge-icon">ℹ️</span> info not found — fill manually or submit as gap`;
+          // Insert before the textarea
+          cardEl.insertBefore(badge, textarea);
+        }
+      }
+    }
+
+    // Navigate to Step 2 so user can review
+    goToStep(2);
+
+    const missing = total - foundCount;
+    if (foundCount === total) {
+      setBrdStatus(`✓ All ${total} areas auto-filled. Review below.`, "success");
+    } else if (foundCount === 0) {
+      setBrdStatus(
+        `No security details found. Fill fields manually before assessment.`,
+        "error"
+      );
+    } else {
+      setBrdStatus(
+        `✓ ${foundCount} / ${total} areas extracted — ${missing} marked "info not found".`,
+        "success"
+      );
+    }
+  } catch (e) {
+    setBrdStatus(`Unexpected error: ${e.message}`, "error");
+  } finally {
+    extractBtn.disabled = false;
+  }
+}
+
+
 /* ── Init ── */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -820,6 +955,19 @@ document.addEventListener("DOMContentLoaded", () => {
         if (el) el.value = "";
       }
       initCharCounters(); // reset counts
+
+      // Clear BRD decorations and state
+      clearBrdCardDecorations();
+      const brdInput = document.getElementById("brdFile");
+      const brdDisplay = document.getElementById("brdFileDisplay");
+      const brdNameSpan = document.getElementById("brdFileName");
+      if (brdInput) brdInput.value = "";
+      if (brdDisplay) brdDisplay.classList.add("hidden");
+      if (brdNameSpan) brdNameSpan.textContent = "";
+      setBrdStatus("Select a PDF to enable extraction", "idle");
+      const extractBtn = document.getElementById("extractBtn");
+      if (extractBtn) extractBtn.disabled = true;
+
       goToStep(1);
     }
   });
@@ -852,6 +1000,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if(btnJson) btnJson.addEventListener("click", exportJson);
   if(btnPdf) btnPdf.addEventListener("click", exportPdf);
   
+  // Policy file upload handlers (existing)
   const fileInput = document.getElementById("policyFile");
   const fileDisplay = document.getElementById("fileDisplay");
   const nameSpan = document.getElementById("policyFileName");
@@ -882,6 +1031,56 @@ document.addEventListener("DOMContentLoaded", () => {
         window.open(objUrl, "_blank");
       }
     });
+  }
+
+  // ── BRD file upload handlers (new) ──
+  const brdInput = document.getElementById("brdFile");
+  const brdDisplay = document.getElementById("brdFileDisplay");
+  const brdNameSpan = document.getElementById("brdFileName");
+  const removeBrdBtn = document.getElementById("removeBrdFileBtn");
+  const extractBtn = document.getElementById("extractBtn");
+
+  if (brdInput) {
+    brdInput.addEventListener("change", (e) => {
+      if (e.target.files.length > 0) {
+        const file = e.target.files[0];
+        if (brdNameSpan) brdNameSpan.textContent = file.name;
+        if (brdDisplay) brdDisplay.classList.remove("hidden");
+        if (extractBtn) extractBtn.disabled = false;
+        setBrdStatus(`"${file.name}" ready — click Extract & Auto-fill to proceed.`, "idle");
+      } else {
+        if (brdDisplay) brdDisplay.classList.add("hidden");
+        if (extractBtn) extractBtn.disabled = true;
+        setBrdStatus("Select a PDF to enable extraction", "idle");
+      }
+    });
+  }
+
+  if (removeBrdBtn) {
+    removeBrdBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (brdInput) brdInput.value = "";
+      if (brdDisplay) brdDisplay.classList.add("hidden");
+      if (brdNameSpan) brdNameSpan.textContent = "";
+      if (extractBtn) extractBtn.disabled = true;
+      clearBrdCardDecorations();
+      setBrdStatus("Select a PDF to enable extraction", "idle");
+    });
+  }
+
+  if (brdNameSpan) {
+    brdNameSpan.addEventListener("click", (e) => {
+      if (brdInput && brdInput.files.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        const objUrl = URL.createObjectURL(brdInput.files[0]);
+        window.open(objUrl, "_blank");
+      }
+    });
+  }
+
+  if (extractBtn) {
+    extractBtn.addEventListener("click", extractBrd);
   }
 
   // Compliance Ring Hover
@@ -915,3 +1114,4 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 });
+

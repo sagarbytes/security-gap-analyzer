@@ -1219,3 +1219,249 @@ textarea:focus {
     font-size: 22px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   BRD / Architecture Doc Upload Card
+   ═══════════════════════════════════════════════════════════════ */
+
+.brd-upload-card {
+  padding: 24px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.04) 0%, rgba(139, 92, 246, 0.04) 100%);
+  border-radius: 16px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.brd-upload-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #6366F1, #8B5CF6, #06B6D4);
+  border-radius: 16px 16px 0 0;
+}
+
+.brd-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.brd-card-icon {
+  font-size: 28px;
+  width: 52px;
+  height: 52px;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.brd-card-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.brd-card-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.brd-new-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6366F1, #8B5CF6);
+  color: white;
+  letter-spacing: 0.04em;
+  margin-left: 8px;
+  vertical-align: middle;
+  text-transform: uppercase;
+}
+
+.brd-upload-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.brd-extract-btn {
+  border: none;
+  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+  color: white;
+  font-family: var(--font);
+  font-size: 14px;
+  padding: 11px 22px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.brd-extract-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45);
+}
+
+.brd-extract-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.brd-extract-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.brd-extract-btn .btn-arrow {
+  font-size: 16px;
+  transition: transform 0.2s ease;
+}
+
+.brd-extract-btn:hover:not(:disabled) .btn-arrow {
+  transform: translateX(3px);
+}
+
+/* BRD status text */
+.brd-status {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  transition: all 0.3s ease;
+}
+
+.brd-status--loading {
+  color: var(--accent);
+}
+
+.brd-status--success {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.brd-status--error {
+  color: var(--bad);
+  font-weight: 500;
+}
+
+.brd-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.brd-status--loading .brd-status-dot {
+  animation: dotBlink 1s ease-in-out infinite;
+}
+
+/* ─── "info not found" badge on Step 2 cards ─── */
+.info-not-found-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(180, 83, 9, 0.08);
+  border: 1px solid rgba(180, 83, 9, 0.25);
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  animation: fadeSlideIn 0.35s ease forwards;
+}
+
+.info-not-found-badge .badge-icon {
+  font-size: 14px;
+}
+
+/* ─── Auto-filled card highlight ─── */
+.card--autofilled {
+  border-color: rgba(5, 150, 105, 0.4) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(5, 150, 105, 0.04) 0%,
+    var(--panel) 60%
+  ) !important;
+}
+
+.card--autofilled::after {
+  content: "✦ Auto-filled";
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ok);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.8;
+}
+
+/* make sure card has position relative for the ::after */
+.card {
+  position: relative;
+}
+
+/* BRD file display (separate from policy file display) */
+.brd-file-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(99, 102, 241, 0.06);
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  animation: slideDown 0.3s ease forwards;
+  margin-top: 8px;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.brd-file-display.hidden {
+  display: none;
+}
+
+.brd-file-name {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+  cursor: pointer;
+}
+
+.brd-file-name:hover {
+  text-decoration: underline;
+}
+
